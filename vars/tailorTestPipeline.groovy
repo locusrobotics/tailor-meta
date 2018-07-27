@@ -1,4 +1,4 @@
-def call(String distribution, String release_track = 'hotdog', String flavour = 'dev') {
+def call(String rosdistro, String release_track = 'hotdog', String flavour = 'dev') {
 
   def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-image'
   def docker_registry_uri = 'https://' + docker_registry
@@ -54,7 +54,7 @@ def call(String distribution, String release_track = 'hotdog', String flavour = 
 
           test_image.inside("-v $HOME/tailor/ccache:/ccache") {
             sh("""#!/bin/bash
-              source /opt/locusrobotics/$release_track/$flavour/$distribution/setup.bash &&
+              source /opt/locusrobotics/$release_track/$flavour/$rosdistro/setup.bash &&
           	  colcon build $colcon_path_args $colcon_build_args &&
           	  colcon build --cmake-target tests $colcon_path_args $colcon_build_args &&
           	  colcon test $colcon_path_args
