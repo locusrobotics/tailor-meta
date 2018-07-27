@@ -1,4 +1,8 @@
-def call(String rosdistro, String release_track = 'hotdog', String flavour = 'dev') {
+def call(Map args) {
+  String rosdistro = args.get('rosdistro')
+  List<String> distributions = args.get('distributions')
+  String release_track = args.get('release_track')
+  String flavour = args.get('flavour')
 
   def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-image'
   def docker_registry_uri = 'https://' + docker_registry
@@ -43,6 +47,7 @@ def call(String rosdistro, String release_track = 'hotdog', String flavour = 'de
             checkout(scm)
           }
 
+          // TODO(pbovbel) parallel tests across distributions
           def distribution = 'xenial'
           def test_image = docker.image(testImage(distribution))
           docker.withRegistry(docker_registry_uri, docker_credentials) { test_image.pull() }
