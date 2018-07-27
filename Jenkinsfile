@@ -3,10 +3,11 @@
 // Learn groovy: https://learnxinyminutes.com/docs/groovy/
 
 def release_track = 'hotdog'
+def release_label = release_track
 def days_to_keep = 10
 def num_to_keep = 10
-def rosdistro_project = '../rosdistro/' + env.BRANCH_NAME
 def deploy = true
+def build_schedule = null
 
 def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-meta'
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
@@ -34,15 +35,19 @@ timestamps {
         days_to_keep = null
       } else if (env.BRANCH_NAME == 'master') {
         // Create mystery meat mirror
-        triggers.add(cron(build_schedule))
+        if (build_schedule) { triggers.add(cron(build_schedule)) }
       } else {
         // Don't deploy for builds on feature branches
+        release_label = release_track + '-' + env.BRANCH_NAME
         deploy = false
       }
       release_track = release_track.replaceAll("\\.", '-')
       release_label = release_label.replaceAll("\\.", '-')
 
+      def rosdistro_project = '../rosdistro/' + env.BRANCH_NAME
       triggers.add(upstream(upstreamProjects: rosdistro_project, threshold: hudson.model.Result.SUCCESS))
+      copyArtifacts(projectName: rosdistro_project)
+      stash(name: 'rosdistro', includes: 'rosdistro/**')
 
       properties([
         buildDiscarder(logRotator(
@@ -80,8 +85,6 @@ timestamps {
         docker.withRegistry(docker_registry_uri, docker_credentials) {
           parent_image.push()
         }
-        copyArtifacts(projectName: rosdistro_project)
-        stash(name: 'rosdistro', includes: 'rosdistro/**')
       } finally {
         junit(testResults: 'tailor-meta/test-results.xml', allowEmptyResults: true)
         deleteDir()

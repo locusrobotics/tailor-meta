@@ -32,7 +32,7 @@ RUN echo "deb http://repo.aptly.info/ squeeze main" > /etc/apt/sources.list.d/ap
     apt-get update && apt-get install --no-install-recommends -y aptly
 
 COPY tailor-meta tailor-meta
-RUN pip3 install -e tailor-upstream
+RUN pip3 install -e tailor-meta
 
 RUN groupadd -r tailor && useradd -ms /bin/bash -g tailor -G sudo tailor
 USER tailor
