@@ -2,12 +2,7 @@
 
 // Learn groovy: https://learnxinyminutes.com/docs/groovy/
 
-// def release_track = 'hotdog'
-// def params.release_label = release_track
-// def days_to_keep = 10
-// def num_to_keep = 10
-// def deploy = true
-// def build_schedule = null
+def deploy = false
 
 def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-meta'
 def docker_registry_uri = 'https://' + docker_registry
@@ -36,6 +31,10 @@ pipeline {
         script {
           sh('env')
           cancelPreviousBuilds()
+
+          if (env.BRANCH_NAME == 'master') {
+            deploy = true
+          }
 
           properties([
             buildDiscarder(logRotator(
@@ -68,7 +67,7 @@ pipeline {
           } catch (all) {
             echo "Unable to pull ${parentImage(params.release_label)} as a build cache"
           }
-
+          sh 'ls tailor-meta'
           withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
             parent_image = docker.build(parentImage(params.release_label),
               "-f tailor-meta/environment/Dockerfile --cache-from ${parentImage(params.release_label)} " +
