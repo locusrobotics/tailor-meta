@@ -67,7 +67,7 @@ pipeline {
           } catch (all) {
             echo "Unable to pull ${parentImage(params.release_label)} as a build cache"
           }
-          sh 'ls tailor-meta'
+          
           withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
             parent_image = docker.build(parentImage(params.release_label),
               "-f tailor-meta/environment/Dockerfile --cache-from ${parentImage(params.release_label)} " +

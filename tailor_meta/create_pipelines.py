@@ -3,7 +3,7 @@ import argparse
 import sys
 
 
-def create_pipelines():
+def create_pipelines(deploy):
     pass
 
 
@@ -15,7 +15,7 @@ def main():
     # parser.add_argument('--endpoint', type=str, required=True)
     # parser.add_argument('--distribution', type=str, required=True)
     # parser.add_argument('--keys', type=pathlib.Path, nargs='+')
-    # parser.add_argument('--publish', action='store_true')
+    parser.add_argument('--deploy', action='store_true')
     args = parser.parse_args()
 
     sys.exit(create_pipelines(**vars(args)))
