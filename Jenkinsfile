@@ -32,7 +32,7 @@ pipeline {
           sh('env')
           cancelPreviousBuilds()
 
-          copyArtifacts(projectName: "../$rosdistro_source")
+          copyArtifacts(projectName: "../${params.rosdistro_source}")
         }
       }
       post {
