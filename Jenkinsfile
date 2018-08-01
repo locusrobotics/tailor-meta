@@ -35,7 +35,15 @@ pipeline {
           copyArtifacts(projectName: "../$rosdistro_source")
         }
       }
+      post {
+        cleanup {
+          deleteDir()
+        }
+      }
     }
+  }
+
+}
 
 // timestamps {
 //   // TODO(pbovbel) this is repeated, a LOT. Make this a common piece somehow.
