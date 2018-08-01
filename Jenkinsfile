@@ -3,7 +3,7 @@
 // Learn groovy: https://learnxinyminutes.com/docs/groovy/
 
 // def release_track = 'hotdog'
-// def release_label = release_track
+// def params.release_label = release_track
 // def days_to_keep = 10
 // def num_to_keep = 10
 // def deploy = true
@@ -19,6 +19,8 @@ pipeline {
 
   parameters {
     string(name: 'rosdistro_source', defaultValue: 'master')
+    string(name: 'release_track', defaultValue: 'hotdog')
+    string(name: 'release_label', defaultValue: 'hotdog')
     string(name: 'num_to_keep', defaultValue: '10')
     string(name: 'days_do_keep', defaultValue: '10')
   }
@@ -60,16 +62,16 @@ pipeline {
           dir('tailor-meta') {
             checkout(scm)
           }
-          def parent_image = docker.image(parentImage(release_label))
+          def parent_image = docker.image(parentImage(params.release_label))
           try {
             docker.withRegistry(docker_registry_uri, docker_credentials) { parent_image.pull() }
           } catch (all) {
-            echo "Unable to pull ${parentImage(release_label)} as a build cache"
+            echo "Unable to pull ${parentImage(params.release_label)} as a build cache"
           }
 
           withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
-            parent_image = docker.build(parentImage(release_label),
-              "-f tailor-meta/environment/Dockerfile --cache-from ${parentImage(release_label)} " +
+            parent_image = docker.build(parentImage(params.release_label),
+              "-f tailor-meta/environment/Dockerfile --cache-from ${parentImage(params.release_label)} " +
               "--build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID " +
               "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY .")
           }
@@ -97,7 +99,7 @@ pipeline {
       agent any
       steps {
         script {
-          def parent_image = docker.image(parentImage(release_label))
+          def parent_image = docker.image(parentImage(params.release_label))
           docker.withRegistry(docker_registry_uri, docker_credentials) {
             parent_image.pull()
           }
