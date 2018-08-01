@@ -37,12 +37,12 @@ pipeline {
 
           properties([
             buildDiscarder(logRotator(
-              daysToKeepStr: param.days_do_keep, numToKeepStr: params.num_to_keep,
+              daysToKeepStr: params.days_do_keep, numToKeepStr: params.num_to_keep,
               artifactDaysToKeepStr: params.days_to_keep, artifactNumToKeepStr: params.num_to_keep
             ))
           ])
 
-          copyArtifacts(projectName: "../" + params.rosdistro_source)
+          copyArtifacts(projectName: "../rosdistro/" + params.rosdistro_source)
           stash(name: 'rosdistro', includes: 'rosdistro/**')
         }
       }
@@ -93,7 +93,7 @@ pipeline {
       }
     }
 
-    stage("Build and test tailor-meta") {
+    stage("Update repositories") {
       agent any
       steps {
         script {
