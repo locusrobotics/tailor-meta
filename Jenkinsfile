@@ -45,7 +45,7 @@ timestamps {
       release_label = release_label.replaceAll("\\.", '-')
 
       def rosdistro_project = '../rosdistro/' + env.BRANCH_NAME
-      triggers.add(upstream(upstreamProjects: rosdistro_project, threshold: hudson.model.Result.SUCCESS))
+      // triggers.add(upstream(upstreamProjects: rosdistro_project, threshold: hudson.model.Result.SUCCESS))
       copyArtifacts(projectName: rosdistro_project)
       stash(name: 'rosdistro', includes: 'rosdistro/**')
 
