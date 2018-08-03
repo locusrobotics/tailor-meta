@@ -60,7 +60,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
             try:
                 old_jenkinsfile = gh_repo.get_file_contents(path="/Jenkinsfile", ref=branch)
                 if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
-                    click.echo("Updating existing file...")
+                    click.echo("Updating existing file...", err=True)
                     if deploy:
                         gh_repo.update_file(
                             path='/Jenkinsfile',
@@ -71,7 +71,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 else:
                     click.echo(f"No change required", err=True)
             except github.GithubException:
-                click.echo("Writing new file...")
+                click.echo("Writing new file...", err=True)
                 if deploy:
                     gh_repo.create_file(
                         path='/Jenkinsfile',
