@@ -29,7 +29,7 @@ pipeline {
 
   stages {
     stage("Configure build parameters") {
-      agent any
+      agent { label 'master' }
       steps {
         script {
           sh('env')
