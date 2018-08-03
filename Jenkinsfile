@@ -106,34 +106,23 @@ pipeline {
           docker.withRegistry(docker_registry_uri, docker_credentials) {
             parent_image.pull()
           }
+          def repositories = null
           parent_image.inside() {
             unstash(name: 'rosdistro')
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
-              sh("create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_config " +
-                 "--github-key $github_token --meta-branch $env.BRANCH_NAME ${deploy ? '--deploy' : ''} " +
-                 "--release-track $params.release_track")
+              def repositories_yaml = sh(
+                script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_config " +
+                        "--github-key $github_token --meta-branch $env.BRANCH_NAME ${deploy ? '--deploy' : ''} " +
+                        "--release-track $params.release_track",
+                returnStdout: true).trim()
+              repositories = readYaml(text: repositories_yaml)
             }
           }
           unstash(name: 'source')
-          sh 'ls tailor-meta/jobs'
-          jobDsl(targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
+          jobDsl(
+            targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
             additionalParameters: [
-              'repo_name': 'locus_tools',
-              'org_name': 'locusrobotics',
-              'credentials_id': 'tailor_github_keypass',
-            ]
-          )
-          jobDsl(targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
-            additionalParameters: [
-              'repo_name': 'locus_lasers',
-              'org_name': 'locusrobotics',
-              'credentials_id': 'tailor_github_keypass',
-            ]
-          )
-          jobDsl(targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
-            additionalParameters: [
-              'repo_name': 'locus_nav_plugins',
-              'org_name': 'locusrobotics',
+              'repositories': repositories,
               'credentials_id': 'tailor_github_keypass',
             ]
           )

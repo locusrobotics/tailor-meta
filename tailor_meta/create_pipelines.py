@@ -5,6 +5,7 @@ import github
 import pathlib
 import rosdistro
 import sys
+import yaml
 
 from jinja2 import Environment, BaseLoader
 from typing import Mapping, Any
@@ -30,6 +31,8 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
 
     common_options = recipes['common']
 
+    jenkins_jobs = []
+
     for distro_name, _ in common_options['distributions'].items():
 
         distro = rosdistro.get_distribution(index, distro_name)
@@ -37,6 +40,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
         for repo_name, repository_data in distro.repositories.items():
             if not repository_data.source_repository or not repository_data.source_repository.test_commits:
                 continue
+
             click.echo(f"Managing Jenkinsfile for repo {repo_name}", err=True)
             url = repository_data.source_repository.url
             branch = repository_data.source_repository.version
@@ -56,7 +60,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
             try:
                 old_jenkinsfile = gh_repo.get_file_contents(path="/Jenkinsfile", ref=branch)
                 if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
-                    click.echo("Updating existing...")
+                    click.echo("Updating existing file...")
                     if deploy:
                         gh_repo.update_file(
                             path='/Jenkinsfile',
@@ -65,15 +69,19 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                             sha=old_jenkinsfile.sha,
                             branch=branch)
                 else:
-                    click.echo(f"No difference detected for repo {repo_name}")
+                    click.echo(f"No change required")
             except github.GithubException:
-                click.echo("Writing new...")
+                click.echo("Writing new file...")
                 if deploy:
                     gh_repo.create_file(
                         path='/Jenkinsfile',
                         message='Tailor: Creating Jenkinsfile',
                         content=new_jenkinsfile,
                         branch=branch)
+
+            jenkins_jobs.append({'repo_name': repo_name, 'owner_name': gh_repo.owner.login})
+
+    print(yaml.dump(jenkins_jobs))
 
 
 def main():

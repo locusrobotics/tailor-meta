@@ -29,6 +29,7 @@ RUN pip3 install \
     Jinja2 \
     rosdistro \
     PyGithub \
+    PyYaml \
     pytest \
     pytest-mypy \
     pytest-flake8 \
