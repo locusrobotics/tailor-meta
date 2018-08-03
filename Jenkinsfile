@@ -118,8 +118,8 @@ pipeline {
           sh 'ls tailor-meta/jobs'
           jobDsl(targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
             additionalParameters: [
-              'repo': 'locus_tools',
-              'org': 'locusrobotics',
+              'repo_name': 'locus_tools',
+              'org_name': 'locusrobotics',
               'credentials_id': 'tailor_github_keypass',
             ]
           )

@@ -83,9 +83,6 @@ def main():
     parser.add_argument('--recipes', action=YamlLoadAction, required=True)
     parser.add_argument('--meta-branch', type=str, required=True)
     parser.add_argument('--release-track', type=str, required=True)
-    # parser.add_argument('--endpoint', type=str, required=True)
-    # parser.add_argument('--distribution', type=str, required=True)
-    # parser.add_argument('--keys', type=pathlib.Path, nargs='+')
     parser.add_argument('--deploy', action='store_true')
     args = parser.parse_args()
 

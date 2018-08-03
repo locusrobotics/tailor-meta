@@ -2,8 +2,8 @@
 multibranchPipelineJob(repo) {
     branchSources {
         github {
-            repository(repo)
-            repoOwner(org)
+            repository(repo_name)
+            repoOwner(org_name)
             checkoutCredentialsId(credentials_id)
             scanCredentialsId(credentials_id)
         }
