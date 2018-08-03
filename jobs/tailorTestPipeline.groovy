@@ -1,5 +1,5 @@
 #!/usr/bin/env groovy
-multibranchPipelineJob(repo) {
+multibranchPipelineJob(repo_name) {
     branchSources {
         github {
             repository(repo_name)

@@ -123,50 +123,20 @@ pipeline {
               'credentials_id': 'tailor_github_keypass',
             ]
           )
-          // jobDsl(scriptText: """
-          //   multibranchPipelineJob('locus_tools') {
-          //     branchSources {
-          //       github {
-          //         repository('locus_tools')
-          //         repoOwner('locusrobotics')
-          //         checkoutCredentialsId('tailor_github_keypass')
-          //         scanCredentialsId('tailor_github_keypass')
-          //       }
-          //     }
-          //     orphanedItemStrategy {
-          //       discardOldItems {
-          //         daysToKeep(10)
-          //         numToKeep(10)
-          //       }
-          //     }
-          //   }
-          // """)
-          // jobDsl(scriptText: """
-          //   multibranchPipelineJob('locus_lasers') {
-          //     branchSources {
-          //       github {
-          //         repository('locus_lasers')
-          //         repoOwner('locusrobotics')
-          //         checkoutCredentialsId('tailor_github_keypass')
-          //         scanCredentialsId('tailor_github_keypass')
-          //       }
-          //     }
-          //     orphanedItemStrategy {
-          //       discardOldItems {
-          //         daysToKeep(10)
-          //         numToKeep(10)
-          //       }
-          //     }
-          //     configure {
-          //       def traits = it / sources / data / 'jenkins.branch.BranchSource' / source
-          //       / traits
-          //       traits << 'com.cloudbees.jenkins.plugins.bitbucket.BranchDiscoveryTrait' {
-          //         strategyId(3) // detect all branches -refer the plugin source code for various options
-          //       }
-          //     }
-          //   }
-          // """)
-
+          jobDsl(targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
+            additionalParameters: [
+              'repo_name': 'locus_lasers',
+              'org_name': 'locusrobotics',
+              'credentials_id': 'tailor_github_keypass',
+            ]
+          )
+          jobDsl(targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
+            additionalParameters: [
+              'repo_name': 'locus_nav_plugins',
+              'org_name': 'locusrobotics',
+              'credentials_id': 'tailor_github_keypass',
+            ]
+          )
         }
       }
       post {
