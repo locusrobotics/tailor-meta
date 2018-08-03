@@ -22,3 +22,5 @@ def job = multibranchPipelineJob(repo_name) {
         }
     }
 }
+
+queue(repo_name)
