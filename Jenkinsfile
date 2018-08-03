@@ -120,7 +120,7 @@ pipeline {
           }
           unstash(name: 'source')
           jobDsl(
-            targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
+            targets: 'tailor-meta/jobs/tailorTestJob.groovy',
             additionalParameters: [
               'repositories': repositories,
               'credentials_id': 'tailor_github_keypass',

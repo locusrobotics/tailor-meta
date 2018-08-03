@@ -69,7 +69,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                             sha=old_jenkinsfile.sha,
                             branch=branch)
                 else:
-                    click.echo(f"No change required")
+                    click.echo(f"No change required", err=True)
             except github.GithubException:
                 click.echo("Writing new file...")
                 if deploy:
