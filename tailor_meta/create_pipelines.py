@@ -55,23 +55,25 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
             new_jenkinsfile = Environment(loader=BaseLoader()).from_string(JENKINSFILE_TEMPLATE).render(**context)
             try:
                 old_jenkinsfile = gh_repo.get_file_contents(path="/Jenkinsfile", ref=branch)
-                if old_jenkinsfile != new_jenkinsfile:
+                if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
                     click.echo("Updating existing...")
-                    gh_repo.update_file(
-                        path='/Jenkinsfile',
-                        message='Tailor: Updating Jenkinsfile',
-                        content=new_jenkinsfile,
-                        sha=old_jenkinsfile.sha,
-                        branch=branch)
+                    if deploy:
+                        gh_repo.update_file(
+                            path='/Jenkinsfile',
+                            message='Tailor: Updating Jenkinsfile',
+                            content=new_jenkinsfile,
+                            sha=old_jenkinsfile.sha,
+                            branch=branch)
                 else:
                     click.echo(f"No difference detected for repo {repo_name}")
             except github.GithubException:
                 click.echo("Writing new...")
-                gh_repo.create_file(
-                    path='/Jenkinsfile',
-                    message='Tailor: Creating Jenkinsfile',
-                    content=new_jenkinsfile,
-                    branch=branch)
+                if deploy:
+                    gh_repo.create_file(
+                        path='/Jenkinsfile',
+                        message='Tailor: Creating Jenkinsfile',
+                        content=new_jenkinsfile,
+                        branch=branch)
 
 
 def main():
