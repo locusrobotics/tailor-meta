@@ -119,13 +119,16 @@ pipeline {
             }
           }
           unstash(name: 'source')
-          jobDsl(
-            targets: 'tailor-meta/jobs/tailorTestJob.groovy',
-            additionalParameters: [
-              'repositories': repositories,
-              'credentials_id': 'tailor_github_keypass',
-            ]
-          )
+          for (repository in repositories) {
+            jobDsl(
+              targets: 'tailor-meta/jobs/tailorTestJob.groovy',
+              additionalParameters: [
+                'repo_name': repository['repo_name'],
+                'owner_name': repository['owner_name'],
+                'credentials_id': 'tailor_github_keypass',
+              ]
+            )
+          }
         }
       }
       post {
