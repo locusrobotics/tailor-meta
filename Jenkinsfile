@@ -115,6 +115,7 @@ pipeline {
                         "--github-key $github_token --meta-branch $env.BRANCH_NAME ${deploy ? '--deploy' : ''} " +
                         "--release-track $params.release_track",
                 returnStdout: true).trim()
+              echo repositories_yaml
               repositories = readYaml(text: repositories_yaml)
             }
           }
