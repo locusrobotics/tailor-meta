@@ -1,3 +1,4 @@
+#!/usr/bin/env groovy
 def call(Map args) {
   String rosdistro = args.get('rosdistro')
   List<String> distributions = args.get('distributions')

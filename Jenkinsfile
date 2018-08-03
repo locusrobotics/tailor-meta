@@ -64,6 +64,7 @@ pipeline {
           dir('tailor-meta') {
             checkout(scm)
           }
+          stash(name: 'source', includes: 'tailor-meta/**')
           def parent_image = docker.image(parentImage(params.release_label))
           try {
             docker.withRegistry(docker_registry_uri, docker_credentials) { parent_image.pull() }
@@ -113,42 +114,58 @@ pipeline {
                  "--release-track $params.release_track")
             }
           }
-          jobDsl(scriptText: """
-            multibranchPipelineJob('locus_tools') {
-              branchSources {
-                github {
-                  repository('locus_tools')
-                  repoOwner('locusrobotics')
-                  checkoutCredentialsId('tailor_github_keypass')
-                  scanCredentialsId('tailor_github_keypass')
-                }
-              }
-              orphanedItemStrategy {
-                discardOldItems {
-                  daysToKeep(10)
-                  numToKeep(10)
-                }
-              }
-            }
-          """)
-          jobDsl(scriptText: """
-            multibranchPipelineJob('locus_lasers') {
-              branchSources {
-                github {
-                  repository('locus_lasers')
-                  repoOwner('locusrobotics')
-                  checkoutCredentialsId('tailor_github_keypass')
-                  scanCredentialsId('tailor_github_keypass')
-                }
-              }
-              orphanedItemStrategy {
-                discardOldItems {
-                  daysToKeep(10)
-                  numToKeep(10)
-                }
-              }
-            }
-          """)
+          unstash(name: 'source')
+          sh 'ls tailor-meta/jobs'
+          jobDsl(targets: 'tailor-meta/jobs/tailorTestPipeline.groovy',
+            additionalParameters: [
+              'repo': 'locus_tools',
+              'org': 'locusrobotics',
+              'credentials_id': 'tailor_github_keypass',
+            ]
+          )
+          // jobDsl(scriptText: """
+          //   multibranchPipelineJob('locus_tools') {
+          //     branchSources {
+          //       github {
+          //         repository('locus_tools')
+          //         repoOwner('locusrobotics')
+          //         checkoutCredentialsId('tailor_github_keypass')
+          //         scanCredentialsId('tailor_github_keypass')
+          //       }
+          //     }
+          //     orphanedItemStrategy {
+          //       discardOldItems {
+          //         daysToKeep(10)
+          //         numToKeep(10)
+          //       }
+          //     }
+          //   }
+          // """)
+          // jobDsl(scriptText: """
+          //   multibranchPipelineJob('locus_lasers') {
+          //     branchSources {
+          //       github {
+          //         repository('locus_lasers')
+          //         repoOwner('locusrobotics')
+          //         checkoutCredentialsId('tailor_github_keypass')
+          //         scanCredentialsId('tailor_github_keypass')
+          //       }
+          //     }
+          //     orphanedItemStrategy {
+          //       discardOldItems {
+          //         daysToKeep(10)
+          //         numToKeep(10)
+          //       }
+          //     }
+          //     configure {
+          //       def traits = it / sources / data / 'jenkins.branch.BranchSource' / source
+          //       / traits
+          //       traits << 'com.cloudbees.jenkins.plugins.bitbucket.BranchDiscoveryTrait' {
+          //         strategyId(3) // detect all branches -refer the plugin source code for various options
+          //       }
+          //     }
+          //   }
+          // """)
 
         }
       }

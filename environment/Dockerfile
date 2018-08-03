@@ -25,7 +25,14 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   git
 
 RUN pip3 install \
-  Jinja2
+    click \
+    Jinja2 \
+    rosdistro \
+    PyGithub \
+    pytest \
+    pytest-mypy \
+    pytest-flake8 \
+    pytest-runner
 
 RUN echo "deb http://repo.aptly.info/ squeeze main" > /etc/apt/sources.list.d/aptly.list && \
     curl --silent https://www.aptly.info/pubkey.txt | apt-key add - && \
