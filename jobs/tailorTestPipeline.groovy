@@ -1,5 +1,5 @@
 #!/usr/bin/env groovy
-multibranchPipelineJob(repo_name) {
+def job =multibranchPipelineJob(repo_name) {
     branchSources {
         github {
             repository(repo_name)
@@ -21,3 +21,5 @@ multibranchPipelineJob(repo_name) {
         }
     }
 }
+
+queue(job)
