@@ -1,7 +1,8 @@
 #!/usr/bin/env groovy
-def job =multibranchPipelineJob(repo_name) {
+def job = multibranchPipelineJob(repo_name) {
     branchSources {
         github {
+            id(UUID.randomUUID().toString())
             repository(repo_name)
             repoOwner(org_name)
             checkoutCredentialsId(credentials_id)
@@ -21,5 +22,3 @@ def job =multibranchPipelineJob(repo_name) {
         }
     }
 }
-
-queue(job)
