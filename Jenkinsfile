@@ -114,6 +114,24 @@ pipeline {
             }
           }
           jobDsl(scriptText: """
+            multibranchPipelineJob('locus_tools') {
+              branchSources {
+                github {
+                  repository('locus_tools')
+                  repoOwner('locusrobotics')
+                  checkoutCredentialsId('tailor_github_keypass')
+                  scanCredentialsId('tailor_github_keypass')
+                }
+              }
+              orphanedItemStrategy {
+                discardOldItems {
+                  daysToKeep(10)
+                  numToKeep(10)
+                }
+              }
+            }
+          """)
+          jobDsl(scriptText: """
             multibranchPipelineJob('locus_lasers') {
               branchSources {
                 github {
@@ -121,6 +139,12 @@ pipeline {
                   repoOwner('locusrobotics')
                   checkoutCredentialsId('tailor_github_keypass')
                   scanCredentialsId('tailor_github_keypass')
+                }
+              }
+              orphanedItemStrategy {
+                discardOldItems {
+                  daysToKeep(10)
+                  numToKeep(10)
                 }
               }
             }
