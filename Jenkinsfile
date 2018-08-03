@@ -9,6 +9,9 @@ def docker_registry_uri = 'https://' + docker_registry
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
 def parentImage = { release -> docker_registry + ':jenkins-' + release + '-parent' }
 
+def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
+def recipes_config = 'rosdistro/recipes/config.yaml'
+
 pipeline {
   agent none
 
@@ -65,9 +68,9 @@ pipeline {
           try {
             docker.withRegistry(docker_registry_uri, docker_credentials) { parent_image.pull() }
           } catch (all) {
-            echo "Unable to pull ${parentImage(params.release_label)} as a build cache"
+            echo("Unable to pull ${parentImage(params.release_label)} as a build cache")
           }
-          
+
           withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
             parent_image = docker.build(parentImage(params.release_label),
               "-f tailor-meta/environment/Dockerfile --cache-from ${parentImage(params.release_label)} " +
@@ -75,7 +78,7 @@ pipeline {
               "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY .")
           }
           parent_image.inside() {
-            sh 'cd tailor-meta && python3 setup.py test'
+            sh('cd tailor-meta && python3 setup.py test')
           }
           docker.withRegistry(docker_registry_uri, docker_credentials) {
             parent_image.push()
@@ -89,8 +92,8 @@ pipeline {
         cleanup {
           deleteDir()
           // If two docker prunes run simulataneously, one will fail, hence || true
-          sh 'docker image prune -af --filter="until=3h" --filter="label=tailor" || true'
-        }      
+          sh('docker image prune -af --filter="until=3h" --filter="label=tailor" || true')
+        }
       }
     }
 
@@ -104,9 +107,25 @@ pipeline {
           }
           parent_image.inside() {
             unstash(name: 'rosdistro')
-
-            sh("create_pipelines ${deploy ? '--deploy' : ''}")
+            withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
+              sh("create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_config " +
+                 "--github-key $github_token --meta-branch $env.BRANCH_NAME ${deploy ? '--deploy' : ''} " +
+                 "--release-track $params.release_track")
+            }
           }
+          jobDsl(scriptText: """
+            multibranchPipelineJob('locus_lasers') {
+              branchSources {
+                github {
+                  repository('locus_lasers')
+                  repoOwner('locusrobotics')
+                  checkoutCredentialsId('tailor_github_keypass')
+                  scanCredentialsId('tailor_github_keypass')
+                }
+              }
+            }
+          """)
+
         }
       }
       post {
