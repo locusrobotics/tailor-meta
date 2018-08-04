@@ -4,5 +4,6 @@ tailorTestPipeline(
   rosdistro: '{{ rosdistro }}',
   release_track: '{{ release_track }}',
   distributions: ['{{ distributions | join("', '") }}'],
-  flavour: '{{ flavour }}'
+  flavour: '{{ flavour }}',
+  meta_ref: '{{ meta_ref }}'
 )
