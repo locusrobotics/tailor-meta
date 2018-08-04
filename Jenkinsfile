@@ -121,6 +121,7 @@ pipeline {
           unstash(name: 'source')
           jobDsl(
             targets: 'tailor-meta/jobs/tailorTestJob.groovy',
+            removedJobAction: 'DELETE',
             additionalParameters: [
               'repositories': repositories,
               'credentials_id': 'tailor_github_keypass',
