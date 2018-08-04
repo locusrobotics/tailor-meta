@@ -1,13 +1,8 @@
 #!/usr/bin/env groovy
 
-repositories.each { repository ->
+def buildPipelineJob(String repo_name, String owner_name, String credentials_id) {
 
-    def repo_name = repository['repo_name']
-    def owner_name = repository['owner_name']
-
-    println("Creating pipeline for $owner_name/$repo_name")
-
-    delegate.multibranchPipelineJob(repo_name) {
+    multibranchPipelineJob(repo_name) {
         branchSources {
             github {
                 id(repo_name)
@@ -26,5 +21,11 @@ repositories.each { repository ->
     }
 
     queue(repo_name)
+}
 
+repositories.each { repository ->
+    def repo_name = repository['repo_name']
+    def owner_name = repository['owner_name']
+    println("Creating pipeline for $owner_name/$repo_name")
+    buildPipelineJob(repo_name, owner_name, credentials_id)
 }
