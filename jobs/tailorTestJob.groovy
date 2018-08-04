@@ -7,7 +7,7 @@ repositories.each { repository ->
 
     println("Creating pipeline for $owner_name/$repo_name")
 
-    multibranchPipelineJob(repo_name) {
+    delegate.multibranchPipelineJob(repo_name) {
         branchSources {
             github {
                 id(repo_name)
