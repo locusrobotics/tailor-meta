@@ -32,8 +32,8 @@ def call(Map args) {
             library("tailor-meta@$meta_ref").io.locusbots.Utils.cancelPreviousBuilds()
 
             triggers.add(cron('H H * * *'))  // Build source  branch daily
-            triggers.add(upstream(upstreamProjects: "/manage/tailor-images/$meta_ref", threshold: hudson.model.Result.SUCCESS))
-            triggers.add(upstream(upstreamProjects: "/manage/tailor-meta/$meta_ref", threshold: hudson.model.Result.SUCCESS))
+            triggers.add(upstream(upstreamProjects: "/ci/tailor-images/$meta_ref", threshold: hudson.model.Result.SUCCESS))
+            triggers.add(upstream(upstreamProjects: "/ci/tailor-meta/$meta_ref", threshold: hudson.model.Result.SUCCESS))
             // TODO(pbovbel) detect if we should use a different bundle version? Need a variety of test images.
             // if env.CHANGE_TARGET.startsWith('release/') {
             //   release_track = env.CHANGE_TARGET - 'release/'
