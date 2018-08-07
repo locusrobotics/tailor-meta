@@ -28,15 +28,12 @@ def call(Map args) {
         steps {
           script {
             sh 'env'
-            def triggers = []  // TODO(pbovbel) trigger from tailor-distro/tailor-image builds?
-            // cancelPreviou  sBuilds()
+            def triggers = []
+            library("tailor-meta@$meta_ref").io.locusbots.Utils.cancelPreviousBuilds()
 
-            if (env.BRANCH_NAME == 'master') {
-              // Build master branch daily
-              triggers.add(cron('H H * * *'))
-            }
-            triggers.add(upstream(upstreamProjects: "../tailor-images/$meta_ref", threshold: hudson.model.Result.SUCCESS))
-            triggers.add(upstream(upstreamProjects: "../tailor-meta/$meta_ref", threshold: hudson.model.Result.SUCCESS))
+            triggers.add(cron('H H * * *'))  // Build source  branch daily
+            triggers.add(upstream(upstreamProjects: "/manage/tailor-images/$meta_ref", threshold: hudson.model.Result.SUCCESS))
+            triggers.add(upstream(upstreamProjects: "/manage/tailor-meta/$meta_ref", threshold: hudson.model.Result.SUCCESS))
             // TODO(pbovbel) detect if we should use a different bundle version? Need a variety of test images.
             // if env.CHANGE_TARGET.startsWith('release/') {
             //   release_track = env.CHANGE_TARGET - 'release/'
