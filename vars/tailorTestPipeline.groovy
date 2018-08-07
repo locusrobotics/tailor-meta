@@ -29,7 +29,8 @@ def call(Map args) {
           script {
             sh 'env'
             def triggers = []
-            library("tailor-meta@$meta_ref").io.locusbots.Utils.cancelPreviousBuilds()
+            library("tailor-meta@$meta_ref")
+            cancelPreviousBuilds()
 
             triggers.add(cron('H H * * *'))  // Build source  branch daily
             triggers.add(upstream(upstreamProjects: "/ci/tailor-images/$meta_ref", threshold: hudson.model.Result.SUCCESS))

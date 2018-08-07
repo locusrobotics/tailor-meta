@@ -1,5 +1,5 @@
-@NonCPS
-def cancelPreviousBuilds() {
+#!/usr/bin/env groovy
+def call(Map args) {
     def jobName = env.JOB_NAME
     def buildNumber = env.BUILD_NUMBER.toInteger()
     /* Get job name */
