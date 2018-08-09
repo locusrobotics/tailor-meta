@@ -1,5 +1,6 @@
 #!/usr/bin/env groovy
 def call(Map args) {
+  // TODO(pbovbel) handle package whitelist
   String rosdistro = args.get('rosdistro')
   List<String> distributions = args.get('distributions')
   String release_track = args.get('release_track')

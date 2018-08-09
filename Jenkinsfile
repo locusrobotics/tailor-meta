@@ -10,7 +10,7 @@ def docker_credentials = 'ecr:us-east-1:tailor_aws'
 def parentImage = { release -> docker_registry + ':jenkins-' + release + '-parent' }
 
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
-def recipes_config = 'rosdistro/recipes/config.yaml'
+def recipes_config = 'rosdistro/config/recipes.yaml'
 
 pipeline {
   agent none
@@ -35,9 +35,8 @@ pipeline {
           sh('env')
           cancelPreviousBuilds()
 
-          if (env.BRANCH_NAME == 'master') {
-            deploy = true
-          }
+          // TODO(pbovbel) straighten out how this works
+          deploy = env.BRANCH_NAME == 'master' ? true : false
 
           properties([
             buildDiscarder(logRotator(
@@ -46,7 +45,7 @@ pipeline {
             ))
           ])
 
-          copyArtifacts(projectName: "../rosdistro/" + params.rosdistro_source)
+          copyArtifacts(projectName: "/ci/rosdistro/" + params.rosdistro_source)
           stash(name: 'rosdistro', includes: 'rosdistro/**')
         }
       }
@@ -88,11 +87,11 @@ pipeline {
       }
       post {
         always {
-          junit(testResults: 'tailor-meta/test-results.xml', allowEmptyResults: true)
+          junit(testResults: 'tailor-meta/test-results.xml')
         }
         cleanup {
           deleteDir()
-          // If two docker prunes run simulataneously, one will fail, hence || true
+          // If two docker prunes run simultaneously, one will fail, hence || true
           sh('docker image prune -af --filter="until=3h" --filter="label=tailor" || true')
         }
       }
