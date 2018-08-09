@@ -20,7 +20,7 @@ pipeline {
     string(name: 'release_track', defaultValue: 'hotdog')
     string(name: 'release_label', defaultValue: 'hotdog')
     string(name: 'num_to_keep', defaultValue: '10')
-    string(name: 'days_do_keep', defaultValue: '10')
+    string(name: 'days_to_keep', defaultValue: '10')
   }
 
   options {
@@ -40,7 +40,7 @@ pipeline {
 
           properties([
             buildDiscarder(logRotator(
-              daysToKeepStr: params.days_do_keep, numToKeepStr: params.num_to_keep,
+              daysToKeepStr: params.days_to_keep, numToKeepStr: params.num_to_keep,
               artifactDaysToKeepStr: params.days_to_keep, artifactNumToKeepStr: params.num_to_keep
             ))
           ])
