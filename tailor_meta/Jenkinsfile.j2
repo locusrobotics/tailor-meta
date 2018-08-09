@@ -1,9 +1,0 @@
-#!/usr/bin/env groovy
-@Library('tailor-meta@{{ meta_ref }}')_
-tailorTestPipeline(
-  rosdistro: '{{ rosdistro }}',
-  release_track: '{{ release_track }}',
-  distributions: ['{{ distributions | join("', '") }}'],
-  flavour: '{{ flavour }}',
-  meta_ref: '{{ meta_ref }}'
-)
