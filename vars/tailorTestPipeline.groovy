@@ -79,7 +79,7 @@ def call(Map args) {
                 colcon build --cmake-target tests $colcon_path_args $colcon_build_args &&
                 colcon test $colcon_path_args
               """)
-              junit(testResults: 'test_results/**/*.xml')
+              junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
             }
           }
         }

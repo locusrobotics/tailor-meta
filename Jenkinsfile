@@ -1,9 +1,4 @@
 #!/usr/bin/env groovy
-
-// Learn groovy: https://learnxinyminutes.com/docs/groovy/
-
-def deploy = false
-
 def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-meta'
 def docker_registry_uri = 'https://' + docker_registry
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
@@ -21,6 +16,7 @@ pipeline {
     string(name: 'release_label', defaultValue: 'hotdog')
     string(name: 'num_to_keep', defaultValue: '10')
     string(name: 'days_to_keep', defaultValue: '10')
+    booleanParam(name: 'deploy', defaultValue: false)
   }
 
   options {
@@ -36,7 +32,7 @@ pipeline {
           cancelPreviousBuilds()
 
           // TODO(pbovbel) straighten out how this works
-          deploy = env.BRANCH_NAME == 'master' ? true : false
+          params.deploy = env.BRANCH_NAME == 'master' ? params.deploy : false
 
           properties([
             buildDiscarder(logRotator(
@@ -111,7 +107,7 @@ pipeline {
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
               def repositories_yaml = sh(
                 script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_config " +
-                        "--github-key $github_token --meta-branch $env.BRANCH_NAME ${deploy ? '--deploy' : ''} " +
+                        "--github-key $github_token --meta-branch $env.BRANCH_NAME ${params.deploy ? '--deploy' : ''} " +
                         "--release-track $params.release_track",
                 returnStdout: true).trim()
               repositories = readYaml(text: repositories_yaml)
