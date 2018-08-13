@@ -14,7 +14,7 @@ def call(Map args) {
   def days_to_keep = 10
   def num_to_keep = 10
 
-  def testImage = { distribution -> docker_registry + ':jenkins-' + distribution + '-test-image' }
+  def testImage = { distribution -> docker_registry + ':jenkins-' + distribution + '-test-image-master' }
 
   pipeline {
     agent none
