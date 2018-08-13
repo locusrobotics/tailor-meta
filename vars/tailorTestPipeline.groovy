@@ -5,7 +5,7 @@ def call(Map args) {
   List<String> distributions = args.get('distributions')
   String release_track = args.get('release_track')
   String flavour = args.get('flavour')
-  String meta_branch = args.get('metmeta_brancha_ref')
+  String meta_branch = args.get('meta_branch')
 
   def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-image'
   def docker_registry_uri = 'https://' + docker_registry
@@ -34,8 +34,7 @@ def call(Map args) {
             cancelPreviousBuilds()
 
             triggers.add(cron('H H * * *'))  // Build source  branch daily
-            triggers.add(upstream(upstreamProjects: "/ci/tailor-images/master", threshold: hudson.model.Result.SUCCESS))
-            triggers.add(upstream(upstreamProjects: "/ci/tailor-meta/$meta_branch", threshold: hudson.model.Result.SUCCESS))
+            triggers.add(upstream(upstreamProjects: "/ci/tailor-images/master, /ci/tailor-meta/$meta_branch", threshold: hudson.model.Result.SUCCESS))
             // TODO(pbovbel) detect if we should use a different bundle version? Need a variety of test images.
             // if env.CHANGE_TARGET.startsWith('release/') {
             //   release_track = env.CHANGE_TARGET - 'release/'
