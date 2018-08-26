@@ -6,6 +6,7 @@ def call(Map args) {
   String release_track = args.get('release_track')
   String flavour = args.get('flavour')
   String meta_branch = args.get('meta_branch')
+  String master_branch = args.get('master_branch')
 
   def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-image'
   def docker_registry_uri = 'https://' + docker_registry
@@ -33,8 +34,11 @@ def call(Map args) {
             library("tailor-meta@$meta_branch")
             cancelPreviousBuilds()
 
-            triggers.add(cron('H H * * *'))  // Build source  branch daily
-            triggers.add(upstream(upstreamProjects: "/ci/tailor-images/master, /ci/tailor-meta/$meta_branch", threshold: hudson.model.Result.SUCCESS))
+            // Only build 'master' branch regularly/automatically, release/feature branches require SCM or manual trigger.
+            if (env.BRANCH_NAME == master_branch) {
+              triggers.add(cron('H H * * *'))  // Build source  branch daily
+              triggers.add(upstream(upstreamProjects: "/ci/tailor-images/master, /ci/tailor-meta/$meta_branch", threshold: hudson.model.Result.SUCCESS))
+            }
             // TODO(pbovbel) detect if we should use a different bundle version? Need a variety of test images.
             // if env.CHANGE_TARGET.startsWith('release/') {
             //   release_track = env.CHANGE_TARGET - 'release/'

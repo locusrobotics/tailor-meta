@@ -17,10 +17,16 @@ JENKINSFILE_TEMPLATE = """#!/usr/bin/env groovy
 @Library('tailor-meta@{{ meta_branch }}')_
 tailorTestPipeline(
   rosdistro: '{{ rosdistro }}',
+  // Release track to test branch against.
   release_track: '{{ release_track }}',
+  // OS distributions to test.
   distributions: ['{{ distributions | join("', '") }}'],
+  // Bundle flavour to test against.
   flavour: '{{ flavour }}',
-  meta_branch: '{{ meta_branch }}'
+  // Branch of tailor_meta to build against
+  meta_branch: '{{ meta_branch }}',
+  // Master branch of this repo, to determine whether to automatically trigger builds
+  master_branch: '{{ master_branch }}'
 )
 """
 
@@ -51,6 +57,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
 
             context = {
                 'meta_branch': meta_branch,
+                'master_branch': branch,
                 'rosdistro': distro_name,
                 'release_track': release_track,
                 'distributions': [distro for distros in recipes['os'].values() for distro in distros],
