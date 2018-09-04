@@ -80,7 +80,7 @@ def call(Map args) {
                 source /opt/locusrobotics/$release_track/$flavour/$rosdistro/setup.bash &&
                 colcon build $colcon_path_args $colcon_build_args &&
                 colcon build --cmake-target tests $colcon_path_args $colcon_build_args &&
-                colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
+                colcon test $colcon_path_args
               """)
               junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
             }
