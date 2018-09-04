@@ -7,8 +7,6 @@ def parentImage = { release -> docker_registry + ':jenkins-' + release + '-paren
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 def recipes_config = 'rosdistro/config/recipes.yaml'
 
-def deploy = false
-
 pipeline {
   agent none
 
@@ -31,9 +29,6 @@ pipeline {
       steps {
         script {
           sh('env')
-
-          // TODO(pbovbel) straighten out how this works
-          deploy = env.BRANCH_NAME == 'master' ? params.deploy : false
 
           properties([
             buildDiscarder(logRotator(
@@ -111,7 +106,7 @@ pipeline {
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
               def repositories_yaml = sh(
                 script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_config " +
-                        "--github-key $github_token --meta-branch $env.BRANCH_NAME ${deploy ? '--deploy' : ''} " +
+                        "--github-key $github_token --meta-branch $env.BRANCH_NAME ${params.deploy ? '--deploy' : ''} " +
                         "--release-track $params.release_track",
                 returnStdout: true).trim()
               repositories = readYaml(text: repositories_yaml)
