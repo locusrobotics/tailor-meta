@@ -68,11 +68,10 @@ def call(Map args) {
             def test_image = docker.image(testImage(distribution))
             docker.withRegistry(docker_registry_uri, docker_credentials) { test_image.pull() }
 
-            def colcon_path_args = "--base-paths package --test-result-base test_results"
+            def colcon_path_args = "--merge-install --base-paths package --test-result-base test_results"
 
             // TODO(pbovbel) pull from rosdistro
-            def colcon_build_args = "--merge-install " +
-                                    "--cmake-args -DCMAKE_CXX_FLAGS='-DNDEBUG -g -O3 -fext-numeric-literals' " +
+            def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-DNDEBUG -g -O3 -fext-numeric-literals' " +
                                     "-DCMAKE_CXX_STANDARD='14' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
                                     "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
@@ -80,7 +79,7 @@ def call(Map args) {
               sh("""#!/bin/bash
                 source /opt/locusrobotics/$release_track/$flavour/$rosdistro/setup.bash &&
                 colcon build $colcon_path_args $colcon_build_args &&
-                colcon build --cmake-target tests $colcon_path_args $colcon_build_args &&
+                colcon build --cmake-target tests $colcon_path_args $colcon_build_args || true &&
                 colcon test $colcon_path_args
               """)
               junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
