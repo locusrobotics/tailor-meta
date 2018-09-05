@@ -1,4 +1,4 @@
-qq#!/usr/bin/env groovy
+#!/usr/bin/env groovy
 def call(Map args) {
   // TODO(pbovbel) handle package whitelist
   String rosdistro = args.get('rosdistro')
