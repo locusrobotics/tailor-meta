@@ -1,4 +1,4 @@
-#!/usr/bin/env groovy
+qq#!/usr/bin/env groovy
 def call(Map args) {
   // TODO(pbovbel) handle package whitelist
   String rosdistro = args.get('rosdistro')
@@ -71,7 +71,8 @@ def call(Map args) {
             def colcon_path_args = "--base-paths package --test-result-base test_results"
 
             // TODO(pbovbel) pull from rosdistro
-            def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-DNDEBUG -g -O3 -fext-numeric-literals' " +
+            def colcon_build_args = "--merge-install " +
+                                    "--cmake-args -DCMAKE_CXX_FLAGS='-DNDEBUG -g -O3 -fext-numeric-literals' " +
                                     "-DCMAKE_CXX_STANDARD='14' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
                                     "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
