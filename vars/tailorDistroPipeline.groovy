@@ -1,18 +1,18 @@
 #!/usr/bin/env groovy
+enum BuildType{
+  TRIVIAL,
+  FEATURE,
+  HOTDOG,
+  CANDIDATE,
+  FINAL
+}
+
 def call(Map args) {
   // TODO(pbovbel) handle package whitelist
   String tailor_upstream = args.get('tailor_upstream')
   String tailor_distro = args.get('tailor_distro')
   String tailor_image = args.get('tailor_image')
   String tailor_meta = args.get('tailor_meta')
-
-  enum BuildType{
-    TRIVIAL,
-    FEATURE,
-    HOTDOG,
-    CANDIDATE,
-    FINAL
-  }
 
   def getBuildType = {
     if (env.TAG_NAME != null) {
