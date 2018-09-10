@@ -31,11 +31,21 @@ def call(Map args) {
   def getBuildTrack = {
     def track
     switch(getBuildType()) {
-      case BuildType.FINAL: track = env.TAG_NAME
-      case BuildType.CANDIDATE: track = env.BRANCH_NAME - 'release/'
-      case BuildType.HOTDOG: track = 'hotdog'
-      case BuildType.FEATURE: track = 'hotdog'
-      case BuildType.TRIVIAL: track = null
+      case BuildType.FINAL:
+        track = env.TAG_NAME
+        break
+      case BuildType.CANDIDATE:
+        track = env.BRANCH_NAME - 'release/'
+        break
+      case BuildType.HOTDOG:
+        track = 'hotdog'
+        break
+      case BuildType.FEATURE:
+        track = 'hotdog'
+        break
+      case BuildType.TRIVIAL:
+        track = null
+        break
     }
     return track ? track.replaceAll("\\.", '-') : track
   }
@@ -43,32 +53,42 @@ def call(Map args) {
   def getBuildLabel = {
     def label
     switch(getBuildType()) {
-      case BuildType.FINAL: label = getBuildTrack() + '-final'
-      case BuildType.CANDIDATE: label = getBuildTrack() + '-candidate'
-      case BuildType.HOTDOG: label = 'hotdog'
-      case BuildType.FEATURE: label = env.BRANCH_NAME - 'feature/'
-      case BuildType.TRIVIAL: label = null
+      case BuildType.FINAL:
+        label = getBuildTrack() + '-final'
+        break
+      case BuildType.CANDIDATE:
+        label = getBuildTrack() + '-candidate'
+        break
+      case BuildType.HOTDOG:
+        label = 'hotdog'
+        break
+      case BuildType.FEATURE:
+        label = env.BRANCH_NAME - 'feature/'
+        break
+      case BuildType.TRIVIAL:
+        label = null
+        break
     }
     return label ? label.replaceAll("\\.", '-') : label
   }
 
   def numToKeep = {
     switch(getBuildType()){
-      case BuildType.FINAL: 10
-      case BuildType.CANDIDATE: 10
-      case BuildType.HOTDOG: 10
-      case BuildType.FEATURE: 10
-      case BuildType.TRIVIAL: 10
+      case BuildType.FINAL: return 10
+      case BuildType.CANDIDATE: return 10
+      case BuildType.HOTDOG: return 10
+      case BuildType.FEATURE: return 10
+      case BuildType.TRIVIAL: return 10
     }
   }
 
   def daysToKeep = {
     switch(getBuildType()){
-      case BuildType.FINAL: null
-      case BuildType.CANDIDATE: null
-      case BuildType.HOTDOG: 10
-      case BuildType.FEATURE: 10
-      case BuildType.TRIVIAL: 10
+      case BuildType.FINAL: return null
+      case BuildType.CANDIDATE: return null
+      case BuildType.HOTDOG: return 10
+      case BuildType.FEATURE: return 10
+      case BuildType.TRIVIAL: return 10
     }
   }
 
@@ -114,6 +134,9 @@ def call(Map args) {
             sh('env')
             library("tailor-meta@$tailor_meta")
             cancelPreviousBuilds()
+
+            echo "Build Type: ${getBuildType()}, Track:${getBuildTrack()}, Label: ${getBuildLabel()}"
+
             def triggers = []
 
             if (getBuildType() == BuildType.HOTDOG) {
