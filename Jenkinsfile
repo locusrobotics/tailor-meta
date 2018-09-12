@@ -1,8 +1,8 @@
 #!/usr/bin/env groovy
-def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/tailor-meta'
+def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-tailor'
 def docker_registry_uri = 'https://' + docker_registry
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
-def parentImage = { release -> docker_registry + ':jenkins-' + release + '-parent-' + env.BRANCH_NAME }
+def parentImage = { release -> docker_registry + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
 
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 def recipes_config = 'rosdistro/config/recipes.yaml'
