@@ -176,7 +176,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            params.force_mirror
+            params.force_mirror || getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
         steps {
