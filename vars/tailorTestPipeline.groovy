@@ -37,7 +37,7 @@ def call(Map args) {
             // Only build 'master' branch regularly/automatically, release/feature branches require SCM or manual trigger.
             if (env.BRANCH_NAME == master_branch) {
               triggers.add(cron('H H * * *'))  // Build source  branch daily
-              triggers.add(upstream(upstreamProjects: "/ci/tailor-images/master, /ci/tailor-meta/$meta_branch", threshold: hudson.model.Result.SUCCESS))
+              triggers.add(upstream(upstreamProjects: "/ci/tailor-images/master", threshold: hudson.model.Result.SUCCESS))
             }
             // TODO(pbovbel) detect if we should use a different bundle version? Need a variety of test images.
             // if env.CHANGE_TARGET.startsWith('release/') {
