@@ -48,7 +48,7 @@ def call(Map args) {
         track = null
         break
     }
-    return track ? track.replaceAll("\\.", '-') : track
+    return track
   }
 
   def getBuildLabel = {
@@ -70,7 +70,7 @@ def call(Map args) {
         label = null
         break
     }
-    return label ? label.replaceAll("\\.", '-') : label
+    return label
   }
 
   def numToKeep = {
