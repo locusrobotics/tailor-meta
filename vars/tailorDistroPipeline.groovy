@@ -9,10 +9,11 @@ enum BuildType{
 
 def call(Map args) {
   // TODO(pbovbel) handle package whitelist
-  String tailor_upstream = args.get('tailor_upstream')
-  String tailor_distro = args.get('tailor_distro')
-  String tailor_image = args.get('tailor_image')
-  String tailor_meta = args.get('tailor_meta')
+  String tailor_upstream = args['versions'].get('tailor_upstream')
+  String tailor_distro = args['versions'].get('tailor_distro')
+  String tailor_image = args['versions'].get('tailor_image')
+  String tailor_meta = args['versions'].get('tailor_meta')
+  Boolean skip_mirror = args.get('skip_mirror', false)
 
   def getBuildType = {
     if (env.TAG_NAME != null) {
@@ -116,10 +117,7 @@ def call(Map args) {
     agent none
 
     parameters {
-      booleanParam(name: 'force_mirror', defaultValue: false)
-      booleanParam(name: 'force_distro', defaultValue: false)
-      booleanParam(name: 'force_images', defaultValue: false)
-      booleanParam(name: 'force_meta', defaultValue: false)
+      booleanParam(name: 'skip_mirror', defaultValue: false)
     }
 
     options {
@@ -176,7 +174,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            params.force_mirror || getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            !skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
         steps {
@@ -190,7 +188,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            params.force_distro || getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
         steps {
@@ -204,7 +202,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            params.force_images || getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
         steps {
@@ -219,7 +217,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            params.force_meta || getBuildType() in [BuildType.HOTDOG]
+            getBuildType() in [BuildType.HOTDOG]
           }
         }
         steps {
