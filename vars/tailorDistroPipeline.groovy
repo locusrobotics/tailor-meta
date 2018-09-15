@@ -174,7 +174,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            !skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            !skip_mirror && !params.skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
         steps {
