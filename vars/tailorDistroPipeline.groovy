@@ -198,7 +198,7 @@ def call(Map args) {
         }
       }
 
-      stage("Sub-pipeline: create mirror") {
+      stage("Sub-pipeline: create mirror... again") {
         agent none
         when {
           expression {
