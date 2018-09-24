@@ -198,6 +198,20 @@ def call(Map args) {
         }
       }
 
+      stage("Sub-pipeline: create mirror") {
+        agent none
+        when {
+          expression {
+            !skip_mirror && !params.skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+          }
+        }
+        steps {
+          script {
+            createTailorJob('tailor-upstream', tailor_upstream)
+          }
+        }
+      }
+      
       stage("Sub-pipeline: bake images") {
         agent none
         when {
