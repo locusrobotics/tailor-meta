@@ -96,7 +96,7 @@ def call(Map args) {
   def createJobParameters = {
     [
       // TODO(pbovbel) use URL encoding
-      string(name: 'rosdistro_source', value: env.BRANCH_NAME.replaceAll('/', '%2F')),
+      string(name: 'rosdistro_job', value: ('/' + env.JOB_NAME).replaceAll('/', '%2F')),
       string(name: 'release_track', value: getBuildTrack()),
       string(name: 'release_label', value: getBuildLabel()),
       string(name: 'num_to_keep', value: numToKeep().toString()),
