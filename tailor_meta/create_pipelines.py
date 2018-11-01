@@ -72,7 +72,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                     click.echo("Updating existing file...", err=True)
                     if deploy:
                         gh_repo.update_file(
-                            path='/Jenkinsfile',
+                            path='Jenkinsfile',
                             message='Tailor: Updating Jenkinsfile',
                             content=new_jenkinsfile,
                             sha=old_jenkinsfile.sha,
@@ -83,7 +83,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 click.echo("Writing new file...", err=True)
                 if deploy:
                     gh_repo.create_file(
-                        path='/Jenkinsfile',
+                        path='Jenkinsfile',
                         message='Tailor: Creating Jenkinsfile',
                         content=new_jenkinsfile,
                         branch=branch)

@@ -15,7 +15,7 @@ def call(Map args) {
   def days_to_keep = 10
   def num_to_keep = 10
 
-  def testImage = { distribution -> docker_registry + ':tailor-image-' + distribution + '-test-image-master' }
+  def testImage = { distribution -> docker_registry + ':tailor-image-' + distribution + '-test-image' }
 
   pipeline {
     agent none
