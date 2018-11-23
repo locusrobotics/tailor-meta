@@ -8,12 +8,9 @@ enum BuildType{
 }
 
 def call(Map args) {
-  // TODO(pbovbel) handle package whitelist
-  String tailor_upstream = args['versions'].get('tailor_upstream')
   String tailor_distro = args['versions'].get('tailor_distro')
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
-  Boolean skip_mirror = args.get('skip_mirror', false)
 
   def getBuildType = {
     if (env.TAG_NAME != null) {
@@ -115,10 +112,6 @@ def call(Map args) {
   pipeline {
     agent none
 
-    parameters {
-      booleanParam(name: 'skip_mirror', defaultValue: false)
-    }
-
     options {
       timestamps()
     }
@@ -169,20 +162,6 @@ def call(Map args) {
         }
       }
 
-      stage("Sub-pipeline: create mirror") {
-        agent none
-        when {
-          expression {
-            !skip_mirror && !params.skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-          }
-        }
-        steps {
-          script {
-            createTailorJob('tailor-upstream', tailor_upstream)
-          }
-        }
-      }
-
       stage("Sub-pipeline: build distribution") {
         agent none
         when {
@@ -196,21 +175,7 @@ def call(Map args) {
           }
         }
       }
-
-      stage("Sub-pipeline: create mirror... again") {
-        agent none
-        when {
-          expression {
-            !skip_mirror && !params.skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-          }
-        }
-        steps {
-          script {
-            createTailorJob('tailor-upstream', tailor_upstream)
-          }
-        }
-      }
-      
+     
       stage("Sub-pipeline: bake images") {
         agent none
         when {
