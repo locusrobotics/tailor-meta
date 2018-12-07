@@ -59,37 +59,38 @@ def call(Map args) {
         agent any
         steps {
           script {
-            dir('package') {
-              checkout(scm)
+            def jobs = distributions.collectEntries { distribution ->
+              [distribution, { node('master') {
+                try {
+                  dir('package') {
+                    checkout(scm)
+                  }
+                  def test_image = docker.image(testImage(distribution))
+                  docker.withRegistry(docker_registry_uri, docker_credentials) { test_image.pull() }
+
+                  def colcon_path_args = "--merge-install --base-paths package --test-result-base test_results"
+
+                  // TODO(pbovbel) pull from rosdistro
+                  def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-DNDEBUG -g -O3 -fext-numeric-literals' " +
+                                          "-DCMAKE_CXX_STANDARD='14' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
+                                          "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+
+                  test_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    sh("""#!/bin/bash
+                      source /opt/locusrobotics/$release_track/$flavour/$rosdistro/setup.bash &&
+                      colcon build $colcon_path_args $colcon_build_args &&
+                      colcon build --cmake-target tests $colcon_path_args $colcon_build_args || true &&
+                      colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
+                    """)
+                    junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
+                  }
+                } finally {
+                  deleteDir()
+                  sh('docker image prune -af --filter="until=3h" --filter="label=tailor" || true')
+                }
+              }}]
             }
-
-            // TODO(pbovbel) parallel tests across distributions
-            def distribution = 'xenial'
-            def test_image = docker.image(testImage(distribution))
-            docker.withRegistry(docker_registry_uri, docker_credentials) { test_image.pull() }
-
-            def colcon_path_args = "--merge-install --base-paths package --test-result-base test_results"
-
-            // TODO(pbovbel) pull from rosdistro
-            def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-DNDEBUG -g -O3 -fext-numeric-literals' " +
-                                    "-DCMAKE_CXX_STANDARD='14' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
-                                    "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-
-            test_image.inside("-v $HOME/tailor/ccache:/ccache") {
-              sh("""#!/bin/bash
-                source /opt/locusrobotics/$release_track/$flavour/$rosdistro/setup.bash &&
-                colcon build $colcon_path_args $colcon_build_args &&
-                colcon build --cmake-target tests $colcon_path_args $colcon_build_args || true &&
-                colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
-              """)
-              junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
-            }
-          }
-        }
-        post {
-          cleanup {
-            deleteDir()
-            sh('docker image prune -af --filter="until=3h" --filter="label=tailor" || true')
+            parallel(jobs)
           }
         }
       }
