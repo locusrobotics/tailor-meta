@@ -178,35 +178,35 @@ def call(Map args) {
           }
         }
       }
-     
-      stage("Sub-pipeline: bake images") {
-        agent none
-        when {
-          expression {
-            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-          }
-        }
-        steps {
-          script {
-            createTailorJob('tailor-image', tailor_image)
-          }
-        }
 
-      }
+      // stage("Sub-pipeline: bake images") {
+      //   agent none
+      //   when {
+      //     expression {
+      //       getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+      //     }
+      //   }
+      //   steps {
+      //     script {
+      //       createTailorJob('tailor-image', tailor_image)
+      //     }
+      //   }
 
-      stage("Sub-pipeline: process meta") {
-        agent none
-        when {
-          expression {
-            getBuildType() in [BuildType.HOTDOG]
-          }
-        }
-        steps {
-          script {
-            createTailorJob('tailor-meta', tailor_meta)
-          }
-        }
-      }
+      // }
+
+      // stage("Sub-pipeline: process meta") {
+      //   agent none
+      //   when {
+      //     expression {
+      //       getBuildType() in [BuildType.HOTDOG]
+      //     }
+      //   }
+      //   steps {
+      //     script {
+      //       createTailorJob('tailor-meta', tailor_meta)
+      //     }
+      //   }
+      // }
 
     }
   }
