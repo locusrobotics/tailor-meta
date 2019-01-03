@@ -12,6 +12,9 @@ def call(Map args) {
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
 
+  def recipes_config = 'rosdistro/config/recipes.yaml'
+  def common_config = [:]
+
   def getBuildType = {
     if (env.TAG_NAME != null) {
       return BuildType.FINAL
@@ -91,8 +94,6 @@ def call(Map args) {
   }
 
   def createJobParameters = {
-    def recipes_config = 'rosdistro/config/recipes.yaml'
-    def common_config = readYaml(file: recipes_config)['common']
     [
       string(name: 'rosdistro_job', value: ('/' + env.JOB_NAME)),
       string(name: 'release_track', value: getBuildTrack()),
@@ -157,6 +158,7 @@ def call(Map args) {
               checkout(scm)
             }
             // TODO(pbovbel) validate rosdistro and config here
+            common_config = readYaml(file: recipes_config)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
           }
         }
@@ -181,34 +183,33 @@ def call(Map args) {
         }
       }
 
-      // stage("Sub-pipeline: bake images") {
-      //   agent none
-      //   when {
-      //     expression {
-      //       getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-      //     }
-      //   }
-      //   steps {
-      //     script {
-      //       createTailorJob('tailor-image', tailor_image)
-      //     }
-      //   }
+      stage("Sub-pipeline: bake images") {
+        agent none
+        when {
+          expression {
+            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+          }
+        }
+        steps {
+          script {
+            createTailorJob('tailor-image', tailor_image)
+          }
+        }
+      }
 
-      // }
-
-      // stage("Sub-pipeline: process meta") {
-      //   agent none
-      //   when {
-      //     expression {
-      //       getBuildType() in [BuildType.HOTDOG]
-      //     }
-      //   }
-      //   steps {
-      //     script {
-      //       createTailorJob('tailor-meta', tailor_meta)
-      //     }
-      //   }
-      // }
+      stage("Sub-pipeline: process meta") {
+        agent none
+        when {
+          expression {
+            getBuildType() in [BuildType.HOTDOG]
+          }
+        }
+        steps {
+          script {
+            createTailorJob('tailor-meta', tailor_meta)
+          }
+        }
+      }
 
     }
   }
