@@ -7,15 +7,14 @@ def call(Map args) {
   String flavour = args.get('flavour')
   String meta_branch = args.get('meta_branch')
   String master_branch = args.get('master_branch')
+  String docker_registry = args.get('docker_registry')
 
-  def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-tailor'
-  def docker_registry_uri = 'https://' + docker_registry
   def docker_credentials = 'ecr:us-east-1:tailor_aws'
 
   def days_to_keep = 10
   def num_to_keep = 10
 
-  def testImage = { distribution -> docker_registry + ':tailor-image-' + distribution + '-test-image' }
+  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-' + distribution + '-test-image' }
 
   pipeline {
     agent none
@@ -66,7 +65,7 @@ def call(Map args) {
                     checkout(scm)
                   }
                   def test_image = docker.image(testImage(distribution))
-                  docker.withRegistry(docker_registry_uri, docker_credentials) { test_image.pull() }
+                  docker.withRegistry(docker_registry, docker_credentials) { test_image.pull() }
 
                   def colcon_path_args = "--merge-install --base-paths package --test-result-base test_results"
 

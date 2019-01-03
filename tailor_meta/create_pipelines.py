@@ -27,6 +27,8 @@ tailorTestPipeline(
   meta_branch: '{{ meta_branch }}',
   // Master branch of this repo, to determine whether to automatically trigger builds
   master_branch: '{{ master_branch }}'
+  // Docker registry where test image is stored
+  docker_registry: '{{ docker_registry }}'
 )
 """
 
@@ -61,6 +63,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 'rosdistro': distro_name,
                 'release_track': release_track,
                 'distributions': [distro for distros in recipes['os'].values() for distro in distros],
+                'docker_registry': common_options['docker_registry'],
                 'flavour': 'dev',  # TODO(pbovbel) should dev bundle be hardcoded?
             }
 

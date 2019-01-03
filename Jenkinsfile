@@ -1,8 +1,6 @@
 #!/usr/bin/env groovy
-def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-tailor'
-def docker_registry_uri = 'https://' + docker_registry
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
-def parentImage = { release -> docker_registry + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
+def parentImage = { release -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
 
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 def recipes_config = 'rosdistro/config/recipes.yaml'
@@ -16,6 +14,7 @@ pipeline {
     string(name: 'release_label', defaultValue: 'hotdog')
     string(name: 'num_to_keep', defaultValue: '10')
     string(name: 'days_to_keep', defaultValue: '10')
+    string(name: 'docker_registry')
     booleanParam(name: 'deploy', defaultValue: false)
   }
 
@@ -61,7 +60,7 @@ pipeline {
           stash(name: 'source', includes: 'tailor-meta/**')
           def parent_image = docker.image(parentImage(params.release_label))
           try {
-            docker.withRegistry(docker_registry_uri, docker_credentials) { parent_image.pull() }
+            docker.withRegistry(docker_registry, docker_credentials) { parent_image.pull() }
           } catch (all) {
             echo("Unable to pull ${parentImage(params.release_label)} as a build cache")
           }
@@ -75,7 +74,7 @@ pipeline {
           parent_image.inside() {
             sh('cd tailor-meta && python3 setup.py test')
           }
-          docker.withRegistry(docker_registry_uri, docker_credentials) {
+          docker.withRegistry(docker_registry, docker_credentials) {
             parent_image.push()
           }
         }
@@ -97,7 +96,7 @@ pipeline {
       steps {
         script {
           def parent_image = docker.image(parentImage(params.release_label))
-          docker.withRegistry(docker_registry_uri, docker_credentials) {
+          docker.withRegistry(docker_registry, docker_credentials) {
             parent_image.pull()
           }
           def repositories = null
