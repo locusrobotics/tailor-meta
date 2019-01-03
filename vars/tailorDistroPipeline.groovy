@@ -91,6 +91,8 @@ def call(Map args) {
   }
 
   def createJobParameters = {
+    def recipes_config = 'rosdistro/config/recipes.yaml'
+    def common_config = readYaml(file: recipes_config)['common']
     [
       string(name: 'rosdistro_job', value: ('/' + env.JOB_NAME)),
       string(name: 'release_track', value: getBuildTrack()),
@@ -98,8 +100,8 @@ def call(Map args) {
       string(name: 'num_to_keep', value: numToKeep().toString()),
       string(name: 'days_to_keep', value: daysToKeep().toString()),
       // TODO(pbovbel) read these from rosdistro?
-      string(name: 'apt_repo', value: "s3://locus-toydistro"),
-      string(name: 'docker_registry', value: "https://084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-toydistro"),
+      string(name: 'apt_repo', value: common_config['apt_repo']),
+      string(name: 'docker_registry', value: common_config['docker_registry']),
       booleanParam(name: 'deploy', value: true),
     ]
   }
