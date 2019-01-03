@@ -93,6 +93,8 @@ def call(Map args) {
     }
   }
 
+  // (pbovbel) Currentlyt all sub-pipelines use the same parameters, even if some of them are unused.
+  // This may need to change in the future.
   def createJobParameters = {
     [
       string(name: 'rosdistro_job', value: ('/' + env.JOB_NAME)),
@@ -100,9 +102,9 @@ def call(Map args) {
       string(name: 'release_label', value: getBuildLabel()),
       string(name: 'num_to_keep', value: numToKeep().toString()),
       string(name: 'days_to_keep', value: daysToKeep().toString()),
-      // TODO(pbovbel) read these from rosdistro?
       string(name: 'apt_repo', value: common_config['apt_repo']),
       string(name: 'docker_registry', value: common_config['docker_registry']),
+      booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
     ]
   }
@@ -117,6 +119,10 @@ def call(Map args) {
 
   pipeline {
     agent none
+
+    parameters {
+      booleanParam(name: 'force_mirror', defaultValue: false)
+    }
 
     options {
       timestamps()
