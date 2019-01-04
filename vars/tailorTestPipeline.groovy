@@ -55,11 +55,11 @@ def call(Map args) {
       }
 
       stage("Build and test") {
-        agent any
+        agent none
         steps {
           script {
             def jobs = distributions.collectEntries { distribution ->
-              [distribution, { node('master') {
+              [distribution, { node {
                 try {
                   dir('package') {
                     checkout(scm)
