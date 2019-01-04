@@ -142,7 +142,7 @@ def call(Map args) {
             def triggers = []
 
             if (getBuildType() == BuildType.HOTDOG) {
-              triggers.add(cron( '0 */12 * * *')) // Build hotdog every 12 hours
+              triggers.add(cron('0 2 * * *')) // Build at 2 am every day
             }
 
             properties([
