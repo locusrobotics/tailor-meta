@@ -35,8 +35,8 @@ def call(Map args) {
 
             // Only build 'master' branch regularly/automatically, release/feature branches require SCM or manual trigger.
             if (env.BRANCH_NAME == master_branch) {
-              triggers.add(cron('H H * * *'))  // Build source  branch daily
-              triggers.add(upstream(upstreamProjects: "/ci/tailor-images/master", threshold: hudson.model.Result.SUCCESS))
+              // TODO(pbovbel) this upstream job should be parametrized based on the parent that invoked tailor-meta
+              triggers.add(upstream(upstreamProjects: "/ci/rosdistro/master", threshold: hudson.model.Result.SUCCESS))
             }
             // TODO(pbovbel) detect if we should use a different bundle version? Need a variety of test images.
             // if env.CHANGE_TARGET.startsWith('release/') {
