@@ -26,7 +26,7 @@ tailorTestPipeline(
   // Branch of tailor_meta to build against
   meta_branch: '{{ meta_branch }}',
   // Master branch of this repo, to determine whether to automatically trigger builds
-  master_branch: '{{ master_branch }}'
+  master_branch: '{{ master_branch }}',
   // Docker registry where test image is stored
   docker_registry: '{{ docker_registry }}'
 )
