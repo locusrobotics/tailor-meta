@@ -12,7 +12,7 @@ def call(Map args) {
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
 
-  def recipes_config = 'rosdistro/config/recipes.yaml'
+  def recipes_yaml = 'rosdistro/config/recipes.yaml'
   def common_config = [:]
 
   def getBuildType = {
@@ -164,7 +164,7 @@ def call(Map args) {
               checkout(scm)
             }
             // TODO(pbovbel) validate rosdistro and config here
-            common_config = readYaml(file: recipes_config)['common']
+            common_config = readYaml(file: recipes_yaml)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
           }
         }

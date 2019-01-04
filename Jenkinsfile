@@ -3,7 +3,7 @@ def docker_credentials = 'ecr:us-east-1:tailor_aws'
 def parentImage = { release -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
 
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
-def recipes_config = 'rosdistro/config/recipes.yaml'
+def recipes_yaml = 'rosdistro/config/recipes.yaml'
 
 pipeline {
   agent none
@@ -104,7 +104,7 @@ pipeline {
             unstash(name: 'rosdistro')
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
               def repositories_yaml = sh(
-                script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_config " +
+                script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
                         "--github-key $github_token --meta-branch $env.BRANCH_NAME ${params.deploy ? '--deploy' : ''} " +
                         "--release-track $params.release_track",
                 returnStdout: true).trim()
