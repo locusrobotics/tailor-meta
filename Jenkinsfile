@@ -9,7 +9,7 @@ pipeline {
   agent none
 
   parameters {
-    string(name: 'rosdistro_job', defaultValue: '/ci/rosdistro/master')
+    string(name: 'rosdistro_job', defaultValue: '/ci/toydistro/master')
     string(name: 'release_track', defaultValue: 'hotdog')
     string(name: 'release_label', defaultValue: 'hotdog')
     string(name: 'num_to_keep', defaultValue: '10')
@@ -106,20 +106,25 @@ pipeline {
               def repositories_yaml = sh(
                 script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
                         "--github-key $github_token --meta-branch $env.BRANCH_NAME ${params.deploy ? '--deploy' : ''} " +
-                        "--release-track $params.release_track",
+                        "--release-track $params.release_track --rosdistro-job $params.rosdistro_job",
                 returnStdout: true).trim()
               repositories = readYaml(text: repositories_yaml)
             }
           }
           unstash(name: 'source')
-          jobDsl(
-            targets: 'tailor-meta/jobs/tailorTestJob.groovy',
-            removedJobAction: 'DELETE',
-            additionalParameters: [
-              'repositories': repositories,
-              'credentials_id': 'tailor_github_keypass',
-            ]
-          )
+          if (deploy) {
+            jobDsl(
+              targets: 'tailor-meta/jobs/tailorTestJob.groovy',
+              removedJobAction: 'DELETE',
+              additionalParameters: [
+                'repositories': repositories,
+                'credentials_id': 'tailor_github_keypass',
+                // TODO(pbovbel) this is a hack to get the rosdistro 'repo' name from the job, so that the folder name
+                // is unique.
+                'folder_name' = "test/${params.rosdistro_job.split('/')[2]}",
+              ]
+            )
+          }
         }
       }
       post {

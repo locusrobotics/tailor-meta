@@ -14,9 +14,12 @@ from urllib.parse import urlsplit
 from . import YamlLoadAction
 
 JENKINSFILE_TEMPLATE = """#!/usr/bin/env groovy
-@Library('tailor-meta@{{ meta_branch }}')_
+@Library('tailor-meta@{{ tailor_meta_branch }}')_
 tailorTestPipeline(
-  rosdistro: '{{ rosdistro }}',
+  // Name of job that generated this test definition.
+  rosdistro_job: '{{ rosdistro_job }}',
+  // Distribution name
+  rosdistro_name: '{{ rosdistro_name }}',
   // Release track to test branch against.
   release_track: '{{ release_track }}',
   // OS distributions to test.
@@ -24,9 +27,9 @@ tailorTestPipeline(
   // Bundle flavour to test against.
   flavour: '{{ flavour }}',
   // Branch of tailor_meta to build against
-  meta_branch: '{{ meta_branch }}',
+  tailor_meta_branch: '{{ tailor_meta_branch }}',
   // Master branch of this repo, to determine whether to automatically trigger builds
-  master_branch: '{{ master_branch }}',
+  repo_main_branch: '{{ repo_main_branch }}',
   // Docker registry where test image is stored
   docker_registry: '{{ docker_registry }}'
 )
@@ -34,7 +37,7 @@ tailorTestPipeline(
 
 
 def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], github_key: str, deploy: bool,
-                     meta_branch: str, release_track: str):
+                     tailor_meta_branch: str, release_track: str, rosdistro_job: str):
     index = rosdistro.get_index(rosdistro_index.resolve().as_uri())
     github_client = github.Github(github_key)  # TODO(pbovbel) support more than just github?
 
@@ -58,9 +61,10 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
             gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
 
             context = {
-                'meta_branch': meta_branch,
-                'master_branch': branch,
-                'rosdistro': distro_name,
+                'tailor_meta_branch': tailor_meta_branch,
+                'repo_main_branch': branch,
+                'rosdistro_job': rosdistro_job,
+                'rosdistro_name': distro_name,
                 'release_track': release_track,
                 'distributions': [distro for distros in recipes['os'].values() for distro in distros],
                 'docker_registry': common_options['docker_registry'],
@@ -99,6 +103,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
 def main():
     parser = argparse.ArgumentParser(description=create_pipelines.__doc__)
     parser.add_argument('--rosdistro-index', type=pathlib.Path)
+    parser.add_argument('--rosdistro-job', type=str)
     parser.add_argument('--github-key', type=str)
     parser.add_argument('--recipes', action=YamlLoadAction, required=True)
     parser.add_argument('--meta-branch', type=str, required=True)
