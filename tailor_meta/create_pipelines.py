@@ -37,7 +37,7 @@ tailorTestPipeline(
 
 
 def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], github_key: str, deploy: bool,
-                     tailor_meta_branch: str, release_track: str, rosdistro_job: str):
+                     meta_branch: str, release_track: str, rosdistro_job: str):
     index = rosdistro.get_index(rosdistro_index.resolve().as_uri())
     github_client = github.Github(github_key)  # TODO(pbovbel) support more than just github?
 
@@ -61,7 +61,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
             gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
 
             context = {
-                'tailor_meta_branch': tailor_meta_branch,
+                'tailor_meta_branch': meta_branch,
                 'repo_main_branch': branch,
                 'rosdistro_job': rosdistro_job,
                 'rosdistro_name': distro_name,

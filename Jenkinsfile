@@ -121,7 +121,7 @@ pipeline {
                 'credentials_id': 'tailor_github_keypass',
                 // TODO(pbovbel) this is a hack to get the rosdistro 'repo' name from the job, so that the folder name
                 // is unique.
-                'folder_name' = "test/${params.rosdistro_job.split('/')[2]}",
+                'folder_name': "test/${params.rosdistro_job.split('/')[2]}",
               ]
             )
           }
