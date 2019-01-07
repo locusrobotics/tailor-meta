@@ -1,6 +1,6 @@
 #!/usr/bin/env groovy
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
-def parentImage = { release -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
+def parentImage = { release, docker_registry -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
 
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 def recipes_yaml = 'rosdistro/config/recipes.yaml'
@@ -58,16 +58,17 @@ pipeline {
             checkout(scm)
           }
           stash(name: 'source', includes: 'tailor-meta/**')
-          def parent_image = docker.image(parentImage(params.release_label))
+          def parent_image_label = parentImage(params.release_label, params.docker_registry)
+          def parent_image = docker.image(parent_image_label)
           try {
             docker.withRegistry(params.docker_registry, docker_credentials) { parent_image.pull() }
           } catch (all) {
-            echo("Unable to pull ${parentImage(params.release_label)} as a build cache")
+            echo("Unable to pull ${parent_image_label} as a build cache")
           }
 
           withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
-            parent_image = docker.build(parentImage(params.release_label),
-              "-f tailor-meta/environment/Dockerfile --cache-from ${parentImage(params.release_label)} " +
+            parent_image = docker.build(parent_image_label),
+              "-f tailor-meta/environment/Dockerfile --cache-from ${parent_image_label} " +
               "--build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID " +
               "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY .")
           }
@@ -95,7 +96,7 @@ pipeline {
       agent any
       steps {
         script {
-          def parent_image = docker.image(parentImage(params.release_label))
+          def parent_image = docker.image(parentImage(params.release_label, params.docker_registry))
           docker.withRegistry(params.docker_registry, docker_credentials) {
             parent_image.pull()
           }
@@ -119,9 +120,8 @@ pipeline {
               additionalParameters: [
                 'repositories': repositories,
                 'credentials_id': 'tailor_github_keypass',
-                // TODO(pbovbel) this is a hack to get the rosdistro 'repo' name from the job, so that the folder name
-                // is unique.
-                'folder_name': "test/${params.rosdistro_job.split('/')[2]}",
+                // this extracts the (hopefully) unique job name: '/ci/rosdistro/master' -> 'rosdistro'
+                'folder_name': "test/${params.rosdistro_job.split('/')[-2]}",
               ]
             )
           }
