@@ -1,21 +1,20 @@
 #!/usr/bin/env groovy
-def docker_registry = '084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-tailor'
-def docker_registry_uri = 'https://' + docker_registry
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
-def parentImage = { release -> docker_registry + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
+def parentImage = { release -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
 
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
-def recipes_config = 'rosdistro/config/recipes.yaml'
+def recipes_yaml = 'rosdistro/config/recipes.yaml'
 
 pipeline {
   agent none
 
   parameters {
-    string(name: 'rosdistro_job', defaultValue: '/ci/rosdistro/master')
+    string(name: 'rosdistro_job', defaultValue: '/ci/toydistro/master')
     string(name: 'release_track', defaultValue: 'hotdog')
     string(name: 'release_label', defaultValue: 'hotdog')
     string(name: 'num_to_keep', defaultValue: '10')
     string(name: 'days_to_keep', defaultValue: '10')
+    string(name: 'docker_registry')
     booleanParam(name: 'deploy', defaultValue: false)
   }
 
@@ -61,7 +60,7 @@ pipeline {
           stash(name: 'source', includes: 'tailor-meta/**')
           def parent_image = docker.image(parentImage(params.release_label))
           try {
-            docker.withRegistry(docker_registry_uri, docker_credentials) { parent_image.pull() }
+            docker.withRegistry(docker_registry, docker_credentials) { parent_image.pull() }
           } catch (all) {
             echo("Unable to pull ${parentImage(params.release_label)} as a build cache")
           }
@@ -75,7 +74,7 @@ pipeline {
           parent_image.inside() {
             sh('cd tailor-meta && python3 setup.py test')
           }
-          docker.withRegistry(docker_registry_uri, docker_credentials) {
+          docker.withRegistry(docker_registry, docker_credentials) {
             parent_image.push()
           }
         }
@@ -97,7 +96,7 @@ pipeline {
       steps {
         script {
           def parent_image = docker.image(parentImage(params.release_label))
-          docker.withRegistry(docker_registry_uri, docker_credentials) {
+          docker.withRegistry(docker_registry, docker_credentials) {
             parent_image.pull()
           }
           def repositories = null
@@ -105,22 +104,27 @@ pipeline {
             unstash(name: 'rosdistro')
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
               def repositories_yaml = sh(
-                script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_config " +
+                script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
                         "--github-key $github_token --meta-branch $env.BRANCH_NAME ${params.deploy ? '--deploy' : ''} " +
-                        "--release-track $params.release_track",
+                        "--release-track $params.release_track --rosdistro-job $params.rosdistro_job",
                 returnStdout: true).trim()
               repositories = readYaml(text: repositories_yaml)
             }
           }
           unstash(name: 'source')
-          jobDsl(
-            targets: 'tailor-meta/jobs/tailorTestJob.groovy',
-            removedJobAction: 'DELETE',
-            additionalParameters: [
-              'repositories': repositories,
-              'credentials_id': 'tailor_github_keypass',
-            ]
-          )
+          if (deploy) {
+            jobDsl(
+              targets: 'tailor-meta/jobs/tailorTestJob.groovy',
+              removedJobAction: 'DELETE',
+              additionalParameters: [
+                'repositories': repositories,
+                'credentials_id': 'tailor_github_keypass',
+                // TODO(pbovbel) this is a hack to get the rosdistro 'repo' name from the job, so that the folder name
+                // is unique.
+                'folder_name': "test/${params.rosdistro_job.split('/')[2]}",
+              ]
+            )
+          }
         }
       }
       post {

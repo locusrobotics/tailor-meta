@@ -22,7 +22,6 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
     queue(job_name)
 }
 
-def folder_name = 'repos'
 folder(folder_name)
 
 repositories.each { repository ->

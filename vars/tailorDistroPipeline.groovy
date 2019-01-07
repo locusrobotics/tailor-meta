@@ -8,12 +8,12 @@ enum BuildType{
 }
 
 def call(Map args) {
-  // TODO(pbovbel) handle package whitelist
-  String tailor_upstream = args['versions'].get('tailor_upstream')
   String tailor_distro = args['versions'].get('tailor_distro')
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
-  Boolean skip_mirror = args.get('skip_mirror', false)
+
+  def recipes_yaml = 'rosdistro/config/recipes.yaml'
+  def common_config = [:]
 
   def getBuildType = {
     if (env.TAG_NAME != null) {
@@ -93,6 +93,8 @@ def call(Map args) {
     }
   }
 
+  // (pbovbel) Currentlyt all sub-pipelines use the same parameters, even if some of them are unused.
+  // This may need to change in the future.
   def createJobParameters = {
     [
       string(name: 'rosdistro_job', value: ('/' + env.JOB_NAME)),
@@ -100,6 +102,9 @@ def call(Map args) {
       string(name: 'release_label', value: getBuildLabel()),
       string(name: 'num_to_keep', value: numToKeep().toString()),
       string(name: 'days_to_keep', value: daysToKeep().toString()),
+      string(name: 'apt_repo', value: common_config['apt_repo']),
+      string(name: 'docker_registry', value: common_config['docker_registry']),
+      booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
     ]
   }
@@ -116,7 +121,7 @@ def call(Map args) {
     agent none
 
     parameters {
-      booleanParam(name: 'skip_mirror', defaultValue: false)
+      booleanParam(name: 'force_mirror', defaultValue: false)
     }
 
     options {
@@ -137,7 +142,7 @@ def call(Map args) {
             def triggers = []
 
             if (getBuildType() == BuildType.HOTDOG) {
-              triggers.add(cron( '0 */12 * * *')) // Build hotdog every 12 hours
+              triggers.add(cron('0 2 * * *')) // Build at 2 am every day
             }
 
             properties([
@@ -159,26 +164,13 @@ def call(Map args) {
               checkout(scm)
             }
             // TODO(pbovbel) validate rosdistro and config here
+            common_config = readYaml(file: recipes_yaml)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
           }
         }
         post {
           cleanup {
             deleteDir()
-          }
-        }
-      }
-
-      stage("Sub-pipeline: create mirror") {
-        agent none
-        when {
-          expression {
-            !skip_mirror && !params.skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-          }
-        }
-        steps {
-          script {
-            createTailorJob('tailor-upstream', tailor_upstream)
           }
         }
       }
@@ -197,20 +189,6 @@ def call(Map args) {
         }
       }
 
-      stage("Sub-pipeline: create mirror... again") {
-        agent none
-        when {
-          expression {
-            !skip_mirror && !params.skip_mirror && getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-          }
-        }
-        steps {
-          script {
-            createTailorJob('tailor-upstream', tailor_upstream)
-          }
-        }
-      }
-      
       stage("Sub-pipeline: bake images") {
         agent none
         when {
@@ -223,7 +201,6 @@ def call(Map args) {
             createTailorJob('tailor-image', tailor_image)
           }
         }
-
       }
 
       stage("Sub-pipeline: process meta") {
