@@ -60,7 +60,7 @@ pipeline {
           stash(name: 'source', includes: 'tailor-meta/**')
           def parent_image = docker.image(parentImage(params.release_label))
           try {
-            docker.withRegistry(docker_registry, docker_credentials) { parent_image.pull() }
+            docker.withRegistry(params.docker_registry, docker_credentials) { parent_image.pull() }
           } catch (all) {
             echo("Unable to pull ${parentImage(params.release_label)} as a build cache")
           }
@@ -74,7 +74,7 @@ pipeline {
           parent_image.inside() {
             sh('cd tailor-meta && python3 setup.py test')
           }
-          docker.withRegistry(docker_registry, docker_credentials) {
+          docker.withRegistry(params.docker_registry, docker_credentials) {
             parent_image.push()
           }
         }
@@ -96,7 +96,7 @@ pipeline {
       steps {
         script {
           def parent_image = docker.image(parentImage(params.release_label))
-          docker.withRegistry(docker_registry, docker_credentials) {
+          docker.withRegistry(params.docker_registry, docker_credentials) {
             parent_image.pull()
           }
           def repositories = null
