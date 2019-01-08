@@ -113,7 +113,7 @@ pipeline {
             }
           }
           unstash(name: 'source')
-          if (deploy) {
+          if (params.deploy) {
             jobDsl(
               targets: 'tailor-meta/jobs/tailorTestJob.groovy',
               removedJobAction: 'DELETE',
