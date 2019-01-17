@@ -106,14 +106,16 @@ pipeline {
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
               def repositories_yaml = sh(
                 script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
-                        "--github-key $github_token --meta-branch $env.BRANCH_NAME ${params.deploy ? '--deploy' : ''} " +
-                        "--release-track $params.release_track --rosdistro-job $params.rosdistro_job",
+                        "--github-key $github_token --meta-branch $env.BRANCH_NAME " +
+                        "--release-track $params.release_track --release-label $params.release_label " +
+                        "--rosdistro-job $params.rosdistro_job ${params.deploy ? '--deploy' : ''}",
                 returnStdout: true).trim()
               repositories = readYaml(text: repositories_yaml)
             }
           }
           unstash(name: 'source')
-          if (params.deploy) {
+          if (params.deploy && params.release_track == 'hotdog') {
+            // Only manage jenkins jobs from master branch
             jobDsl(
               targets: 'tailor-meta/jobs/tailorTestJob.groovy',
               removedJobAction: 'DELETE',

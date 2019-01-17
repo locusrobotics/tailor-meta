@@ -5,9 +5,10 @@ def call(Map args) {
   String rosdistro_name = args.get('rosdistro_name')
   List<String> distributions = args.get('distributions')
   String release_track = args.get('release_track')
+  String release_label = args.get('release_label')
   String flavour = args.get('flavour')
   String tailor_meta_branch = args.get('tailor_meta_branch')
-  String repo_main_branch = args.get('repo_main_branch')
+  String source_branch = args.get('source_branch')
   String docker_registry = args.get('docker_registry')
 
   def docker_credentials = 'ecr:us-east-1:tailor_aws'
@@ -15,7 +16,7 @@ def call(Map args) {
   def days_to_keep = 10
   def num_to_keep = 10
 
-  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-' + distribution + '-test-image' }
+  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
 
   pipeline {
     agent none
@@ -34,14 +35,10 @@ def call(Map args) {
             library("tailor-meta@$tailor_meta_branch")
             cancelPreviousBuilds()
 
-            // Only build 'master' branch regularly/automatically, release/feature branches require SCM or manual trigger.
-            if (env.BRANCH_NAME == repo_main_branch) {
+            // Only build master or release branches automatically, feature branches require SCM or manual trigger.
+            if (env.BRANCH_NAME == source_branch) {
               triggers.add(upstream(upstreamProjects: "$rosdistro_job", threshold: hudson.model.Result.SUCCESS))
             }
-            // TODO(pbovbel) detect if we should use a different bundle version? Need a variety of test images.
-            // if env.CHANGE_TARGET.startsWith('release/') {
-            //   release_track = env.CHANGE_TARGET - 'release/'
-            // }
 
             properties([
               buildDiscarder(logRotator(
