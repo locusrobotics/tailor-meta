@@ -30,66 +30,56 @@ def call(Map args) {
   }
 
   def getBuildTrack = {
-    def track
     switch(getBuildType()) {
-      case BuildType.FINAL:
-        track = env.TAG_NAME
-        break
-      case BuildType.CANDIDATE:
-        track = env.BRANCH_NAME - 'release/'
-        break
+      case BuildType.FINAL:  // convert 19.1.x into 19.1
+        return env.TAG_NAME.split('\\.')[0..1].join('.')
+      case BuildType.CANDIDATE: // convert release/19.1 into 19.1
+        return env.BRANCH_NAME - 'release/'
       case BuildType.HOTDOG:
-        track = 'hotdog'
-        break
       case BuildType.FEATURE:
-        track = 'hotdog'
-        break
+        return 'hotdog'
       case BuildType.TRIVIAL:
-        track = null
-        break
+        return null
     }
-    return track
   }
 
   def getBuildLabel = {
-    def label
     switch(getBuildType()) {
       case BuildType.FINAL:
-        label = getBuildTrack() + '-final'
-        break
+        return env.TAG_NAME
       case BuildType.CANDIDATE:
-        label = getBuildTrack() + '-candidate'
-        break
+        return getBuildTrack() + '-rc'
       case BuildType.HOTDOG:
-        label = 'hotdog'
-        break
+        return getBuildTrack()
       case BuildType.FEATURE:
-        label = env.BRANCH_NAME - 'feature/'
-        break
+        return env.BRANCH_NAME - 'feature/'
       case BuildType.TRIVIAL:
-        label = null
-        break
+        return null
     }
-    return label
   }
 
   def numToKeep = {
     switch(getBuildType()){
-      case BuildType.FINAL: return 10
-      case BuildType.CANDIDATE: return 10
-      case BuildType.HOTDOG: return 10
-      case BuildType.FEATURE: return 10
-      case BuildType.TRIVIAL: return 10
+      case BuildType.FINAL:
+      case BuildType.CANDIDATE:
+      case BuildType.HOTDOG:
+      case BuildType.FEATURE:
+        return 10
+      case BuildType.TRIVIAL:
+        return 1
     }
   }
 
   def daysToKeep = {
     switch(getBuildType()){
-      case BuildType.FINAL: return null
-      case BuildType.CANDIDATE: return null
-      case BuildType.HOTDOG: return 10
-      case BuildType.FEATURE: return 10
-      case BuildType.TRIVIAL: return 10
+      case BuildType.FINAL:
+      case BuildType.CANDIDATE:
+        return null
+      case BuildType.HOTDOG:
+      case BuildType.FEATURE:
+        return 10
+      case BuildType.TRIVIAL:
+        return 1
     }
   }
 
