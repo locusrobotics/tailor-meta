@@ -53,7 +53,7 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
             # Create label
             if deploy:
                 try:
-                    label = gh_repo.get_label(release_track)
+                    gh_repo.get_label(release_track)
                 except UnknownObjectException:
                     gh_repo.create_label(release_track, color="00ff00")
 
