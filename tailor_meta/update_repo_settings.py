@@ -7,12 +7,13 @@ import rosdistro
 import sys
 
 from typing import Mapping, Any
+from github.GithubException import UnknownObjectException
 
 from . import YamlLoadAction
 
 
 def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any],
-                         github_key: str, deploy: bool):
+                         github_key: str, deploy: bool, release_track: str):
     index = rosdistro.get_index(rosdistro_index.resolve().as_uri())
     github_client = github.Github(github_key)  # TODO(pbovbel) support more than just github?
 
@@ -28,7 +29,7 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
 
             click.echo(f"Updating settings for repo {repo_name}", err=True)
 
-            repo = github_client.get_repo("locusrobotics/"+repo_name)
+            repo = github_client.get_repo(common_options['organization'] + "/" + repo_name)
 
             # Remove wikis and projects
             if deploy:
@@ -46,12 +47,20 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
             if deploy:
                 branch.edit_protection(strict=True, required_approving_review_count=1)
 
+            # Create label
+            if deploy:
+                try:
+                    label = repo.get_label(release_track)
+                except UnknownObjectException:
+                    repo.create_label(release_track, color="00ff00")
+
 
 def main():
     parser = argparse.ArgumentParser(description=update_repo_settings.__doc__)
     parser.add_argument('--rosdistro-index', type=pathlib.Path)
     parser.add_argument('--github-key', type=str)
     parser.add_argument('--recipes', action=YamlLoadAction, required=True)
+    parser.add_argument('--release-track', type=str, required=True)
     parser.add_argument('--deploy', action='store_true')
     args = parser.parse_args()
 
