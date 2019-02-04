@@ -7,6 +7,7 @@ import rosdistro
 import sys
 
 from typing import Mapping, Any
+from urllib.parse import urlsplit
 from github.GithubException import UnknownObjectException
 
 from . import YamlLoadAction
@@ -28,31 +29,33 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
                 continue
 
             click.echo(f"Updating settings for repo {repo_name}", err=True)
+            url = repository_data.source_repository.url
 
-            repo = github_client.get_repo(common_options['organization'] + "/" + repo_name)
+            gh_repo_name = urlsplit(url).path[len('/'):-len('.git')]
+            gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
 
             # Remove wikis and projects
             if deploy:
-                repo_name.edit(has_wiki=False,
-                               has_projects=False)
+                gh_repo.edit(has_wiki=False,
+                             has_projects=False)
 
             # Set PR merge to squash
             if deploy:
-                repo_name.edit(allow_merge_commit=False,
-                               allow_rebase_merge=False,
-                               allow_squash_merge=False)
+                gh_repo.edit(allow_merge_commit=False,
+                             allow_rebase_merge=False,
+                             allow_squash_merge=False)
 
             # Protect branch
-            branch = repo.get_branch(repository_data.get_data()["source"]["version"])
+            branch = gh_repo.get_branch(repository_data.get_data()["source"]["version"])
             if deploy:
                 branch.edit_protection(strict=True, required_approving_review_count=1)
 
             # Create label
             if deploy:
                 try:
-                    label = repo.get_label(release_track)
+                    label = gh_repo.get_label(release_track)
                 except UnknownObjectException:
-                    repo.create_label(release_track, color="00ff00")
+                    gh_repo.create_label(release_track, color="00ff00")
 
 
 def main():
