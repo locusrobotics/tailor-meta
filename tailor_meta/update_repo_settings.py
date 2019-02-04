@@ -30,10 +30,9 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
 
             repo = github_client.get_repo("locusrobotics/"+repo_name)
 
-            # Remove wikis, issues and projects
+            # Remove wikis and projects
             if deploy:
                 repo_name.edit(has_wiki=False,
-                               has_issues=False,
                                has_projects=False)
 
             # Set PR merge to squash
@@ -42,11 +41,10 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
                                allow_rebase_merge=False,
                                allow_squash_merge=False)
 
-            # Protect master and release/* branches
-            for branch in repo.get_branches():
-                if branch.name == "master" or "release/" in branch.name:
-                    if deploy:
-                        branch.edit_protection(strict=True, required_approving_review_count=1)
+            # Protect branch
+            branch = repo.get_branch(repository_data.get_data()["source"]["version"])
+            if deploy:
+                branch.edit_protection(strict=True, required_approving_review_count=1)
 
 
 def main():
