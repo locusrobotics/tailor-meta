@@ -75,7 +75,6 @@ def call(Map args) {
                     sh("""#!/bin/bash
                       source /opt/locusrobotics/$release_track/$flavour/$rosdistro_name/setup.bash &&
                       colcon build $colcon_path_args $colcon_build_args &&
-                      colcon build --cmake-target tests $colcon_path_args $colcon_build_args || true &&
                       colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
                     """)
                     junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
