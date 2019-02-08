@@ -64,9 +64,9 @@ def call(Map args) {
       case BuildType.CANDIDATE:
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
-        return 10
+        return "10"
       case BuildType.TRIVIAL:
-        return 1
+        return "1"
     }
   }
 
@@ -74,12 +74,12 @@ def call(Map args) {
     switch(getBuildType()){
       case BuildType.FINAL:
       case BuildType.CANDIDATE:
-        return null
+        return ""
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
-        return 10
+        return "10"
       case BuildType.TRIVIAL:
-        return 1
+        return "1"
     }
   }
 
@@ -90,8 +90,8 @@ def call(Map args) {
       string(name: 'rosdistro_job', value: ('/' + env.JOB_NAME)),
       string(name: 'release_track', value: getBuildTrack()),
       string(name: 'release_label', value: getBuildLabel()),
-      string(name: 'num_to_keep', value: numToKeep().toString()),
-      string(name: 'days_to_keep', value: daysToKeep().toString()),
+      string(name: 'num_to_keep', value: numToKeep()),
+      string(name: 'days_to_keep', value: daysToKeep()),
       string(name: 'apt_repo', value: common_config['apt_repo']),
       string(name: 'docker_registry', value: common_config['docker_registry']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
@@ -137,8 +137,8 @@ def call(Map args) {
 
             properties([
               buildDiscarder(logRotator(
-                daysToKeep: daysToKeep(), numToKeep: numToKeep(),
-                artifactDaysToKeep: daysToKeep(), artifactNumToKeep: numToKeep()
+                daysToKeepStr: daysToKeep(), numToKeepStr: numToKeep(),
+                artifactDaysToKeepStr: daysToKeep(), artifactNumToKeepStr: numToKeep()
               )),
               pipelineTriggers(triggers)
             ])
