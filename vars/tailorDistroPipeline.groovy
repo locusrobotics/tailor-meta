@@ -152,11 +152,13 @@ def call(Map args) {
             common_config = readYaml(file: recipes_yaml)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
             if (getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]) {
-              s3Upload(
-                bucket: common_config['apt_repo'] - 's3://',
-                file: 'rosdistro/rosdep',
-                path: getBuildTrack() + '/'
-              )
+              withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+                s3Upload(
+                  bucket: common_config['apt_repo'] - 's3://',
+                  file: 'rosdistro',
+                  path: getBuildTrack() + '/rosdistro'
+                )
+              }
             }
           }
         }
