@@ -139,5 +139,21 @@ pipeline {
         }
       }
     }
+    stage("Invalidate cache") {
+      agent any
+      steps {
+        script {
+          common_config = readYaml(file: recipes_yaml)['common']
+
+          def distribution_id = common_config.find{ it.key == "cloudfront_distribution_id" }?.value
+
+          if(distribution_id) {
+            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+              cfInvalidate(distribution:distribution_id, paths:['/*'])
+            }
+          }
+        }
+      }
+    }
   }
 }
