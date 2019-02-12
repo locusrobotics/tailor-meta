@@ -72,7 +72,7 @@ def call(Map args) {
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     sh("""#!/bin/bash
-                      source $BUNDLE_ROOT/$rosdistro_name/setup.bash &&
+                      source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
                       rosdep install --from-paths package --ignore-src -y &&
                       colcon build $colcon_path_args $colcon_build_args &&
                       colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
