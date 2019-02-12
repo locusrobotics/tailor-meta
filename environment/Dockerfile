@@ -38,8 +38,9 @@ RUN pip3 install \
 COPY tailor-meta tailor-meta
 RUN pip3 install -e tailor-meta
 
+# Create non-root user
 RUN groupadd -r tailor && useradd -ms /bin/bash -g tailor -G sudo tailor
+RUN echo "tailor ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers
 USER tailor
-
 RUN mkdir -p /home/tailor && \
     usermod -d /home/tailor tailor
