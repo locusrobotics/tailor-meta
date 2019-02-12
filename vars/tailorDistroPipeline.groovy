@@ -83,7 +83,7 @@ def call(Map args) {
     }
   }
 
-  // (pbovbel) Currentlyt all sub-pipelines use the same parameters, even if some of them are unused.
+  // (pbovbel) Currently all sub-pipelines use the same parameters, even if some of them are unused.
   // This may need to change in the future.
   def createJobParameters = {
     [
@@ -142,20 +142,25 @@ def call(Map args) {
               )),
               pipelineTriggers(triggers)
             ])
-          }
-        }
-      }
 
-      stage("Process rosdistro") {
-        agent { label 'master' }
-        steps {
-          script {
             dir('rosdistro') {
               checkout(scm)
             }
+
             // TODO(pbovbel) validate rosdistro and config here
+
             common_config = readYaml(file: recipes_yaml)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
+            if (getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]) {
+              withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+                s3Upload(
+                  // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
+                  bucket: common_config['apt_repo'] - 's3://',
+                  path: getBuildTrack() + '/rosdistro',
+                  includePathPattern: 'rosdistro/rosdistro/**, rosdistro/rosdep/**, rosdistro/config/**',
+                )
+              }
+            }
           }
         }
         post {
