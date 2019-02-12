@@ -26,8 +26,6 @@ tailorTestPipeline(
   release_label: '{{ release_label }}',
   // OS distributions to test.
   distributions: ['{{ distributions | join("', '") }}'],
-  // Bundle flavour to test against.
-  flavour: '{{ flavour }}',
   // Branch of tailor_meta to build against
   tailor_meta_branch: '{{ tailor_meta_branch }}',
   // Master or release branch associated with this track
@@ -71,7 +69,6 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 'release_label': release_label,
                 'distributions': [distro for distros in recipes['os'].values() for distro in distros],
                 'docker_registry': common_options['docker_registry'],
-                'flavour': 'dev',  # TODO(pbovbel) should dev bundle be hardcoded?
             }
 
             new_jenkinsfile = Environment(loader=BaseLoader()).from_string(JENKINSFILE_TEMPLATE).render(**context)
