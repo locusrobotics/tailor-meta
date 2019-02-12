@@ -6,7 +6,6 @@ def call(Map args) {
   List<String> distributions = args.get('distributions')
   String release_track = args.get('release_track')
   String release_label = args.get('release_label')
-  String flavour = args.get('flavour')
   String tailor_meta_branch = args.get('tailor_meta_branch')
   String source_branch = args.get('source_branch')
   String docker_registry = args.get('docker_registry')
@@ -73,7 +72,7 @@ def call(Map args) {
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     sh("""#!/bin/bash
-                      source /opt/locusrobotics/$release_track/$flavour/$rosdistro_name/setup.bash &&
+                      source $BUNDLE_ROOT/$rosdistro_name/setup.bash &&
                       rosdep install --from-paths package --ignore-src -y &&
                       colcon build $colcon_path_args $colcon_build_args &&
                       colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
