@@ -74,7 +74,7 @@ def call(Map args) {
     switch(getBuildType()){
       case BuildType.FINAL:
       case BuildType.CANDIDATE:
-        return ""
+        return null
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
         return "10"
