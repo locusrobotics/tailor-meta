@@ -71,12 +71,14 @@ def call(Map args) {
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    echo('↓↓↓ TEST OUTPUT ↓↓↓')
                     sh("""#!/bin/bash
                       source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
                       rosdep install --from-paths package --ignore-src -y &&
                       colcon build $colcon_path_args $colcon_build_args &&
                       colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
                     """)
+                    echo('↑↑↑ TEST OUTPUT ↑↑↑')
                     junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
                   }
                 } finally {
