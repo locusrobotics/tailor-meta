@@ -83,7 +83,7 @@ def call(Map args) {
                   }
                 } finally {
                   deleteDir()
-                  sh('docker image prune -af --filter="until=3h" --filter="label=tailor" || true')
+                  sh('docker image prune -af --filter="until=24h" --filter="label=tailor" || true')
                 }
               }}]
             }
