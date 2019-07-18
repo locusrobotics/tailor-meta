@@ -189,7 +189,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
         steps {
