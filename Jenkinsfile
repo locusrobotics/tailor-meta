@@ -85,9 +85,9 @@ pipeline {
           junit(testResults: 'tailor-meta/test-results.xml')
         }
         cleanup {
+          library("tailor-meta@${params.tailor_meta}")
+          cleanDocker()
           deleteDir()
-          // If two docker prunes run simultaneously, one will fail, hence || true
-          sh('docker image prune -af --filter="until=24h" --filter="label=tailor" || true')
         }
       }
     }
