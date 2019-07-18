@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from . import YamlLoadAction
 
 JENKINSFILE_TEMPLATE = """#!/usr/bin/env groovy
-@Library('tailor-meta@{{ tailor_meta_branch }}')_
+@Library('tailor-meta@{{ tailor_meta }}')_
 tailorTestPipeline(
   // Name of job that generated this test definition.
   rosdistro_job: '{{ rosdistro_job }}',
@@ -26,8 +26,8 @@ tailorTestPipeline(
   release_label: '{{ release_label }}',
   // OS distributions to test.
   distributions: ['{{ distributions | join("', '") }}'],
-  // Branch of tailor_meta to build against
-  tailor_meta_branch: '{{ tailor_meta_branch }}',
+  // Version of tailor_meta to build against
+  tailor_meta: '{{ tailor_meta }}',
   // Master or release branch associated with this track
   source_branch: '{{ source_branch }}',
   // Docker registry where test image is stored
@@ -61,7 +61,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
             gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
 
             context = {
-                'tailor_meta_branch': meta_branch,
+                'tailor_meta': meta_branch,
                 'source_branch': branch,
                 'rosdistro_job': rosdistro_job,
                 'rosdistro_name': distro_name,

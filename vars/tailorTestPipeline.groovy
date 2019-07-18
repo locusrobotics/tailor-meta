@@ -6,7 +6,7 @@ def call(Map args) {
   List<String> distributions = args.get('distributions')
   String release_track = args.get('release_track')
   String release_label = args.get('release_label')
-  String tailor_meta_branch = args.get('tailor_meta_branch')
+  String tailor_meta = args.get('tailor_meta')
   String source_branch = args.get('source_branch')
   String docker_registry = args.get('docker_registry')
 
@@ -31,7 +31,7 @@ def call(Map args) {
           script {
             sh 'env'
             def triggers = []
-            library("tailor-meta@$tailor_meta_branch")
+            library("tailor-meta@$tailor_meta")
             cancelPreviousBuilds()
 
             // Only build master or release branches automatically, feature branches require SCM or manual trigger.
@@ -82,9 +82,9 @@ def call(Map args) {
                     junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
                   }
                 } finally {
+                  library("tailor-meta@$tailor_meta")
+                  cleanDocker()
                   deleteDir()
-                  sh('docker image prune -af --filter="until=24h" --filter="label=tailor" || true')
-                  sh('docker image prune -af --filter="until=01h" --filter="label=tailor=environment" || true')
                 }
               }}]
             }

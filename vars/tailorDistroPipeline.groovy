@@ -94,6 +94,7 @@ def call(Map args) {
       string(name: 'days_to_keep', value: daysToKeep()),
       string(name: 'apt_repo', value: common_config['apt_repo']),
       string(name: 'docker_registry', value: common_config['docker_registry']),
+      string(name: 'tailor_meta', value: tailor_meta),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
     ]
