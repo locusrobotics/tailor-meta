@@ -1,6 +1,8 @@
-#!/usr/bin/enprune-environmentvy
+#!/usr/bin/env groovy
 def docker_credentials = 'ecr:us-east-1:tailor_aws'
-def parentImage = { release, docker_registry -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-'pprune-environmentdef rosdistro_index = 'rosdistro/rosdistro/index.yaml'
+def parentImage = { release, docker_registry -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
+
+def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 def recipes_yaml = 'rosdistro/config/recipes.yaml'
 
 pipeline {
