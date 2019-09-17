@@ -157,8 +157,9 @@ def call(Map args) {
                 s3Upload(
                   // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
                   bucket: common_config['apt_repo'] - 's3://',
-                  path: getBuildTrack() + '/rosdistro',
-                  includePathPattern: 'rosdistro/rosdistro/**, rosdistro/rosdep/**, rosdistro/config/**',
+                  path: getBuildTrack(),
+                  includePathPattern: 'rosdistro/**, rosdep/**, config/**',
+                  workingDir: 'rosdistro',
                 )
               }
             }
