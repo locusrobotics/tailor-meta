@@ -24,17 +24,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   python3-wheel \
   git
 
-RUN pip3 install \
-    click \
-    Jinja2 \
-    rosdistro \
-    PyGithub \
-    PyYaml \
-    pytest \
-    pytest-mypy \
-    pytest-flake8 \
-    pytest-runner
-
 COPY tailor-meta tailor-meta
 RUN pip3 install -e tailor-meta
 
