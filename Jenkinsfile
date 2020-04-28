@@ -50,7 +50,7 @@ pipeline {
       }
     }
 
-    stage("Build and test tailor-meta") {
+    stage("Build tailor-meta") {
       agent any
       steps {
         script {
@@ -73,7 +73,7 @@ pipeline {
               "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY .")
           }
           parent_image.inside() {
-            sh('cd tailor-meta && python3 setup.py test')
+            sh('pip3 install -e tailor-meta')
           }
           docker.withRegistry(params.docker_registry, docker_credentials) {
             parent_image.push()
@@ -81,9 +81,6 @@ pipeline {
         }
       }
       post {
-        always {
-          junit(testResults: 'tailor-meta/test-results.xml')
-        }
         cleanup {
           library("tailor-meta@${params.tailor_meta}")
           cleanDocker()
