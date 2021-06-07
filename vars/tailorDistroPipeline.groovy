@@ -135,7 +135,7 @@ def call(Map args) {
 
             def triggers = []
 
-            if (getBuildType() == BuildType.HOTDOG) {
+            if (getBuildType() == BuildType.HOTDOG || args["nightly"]) {
               triggers.add(cron('0 2 * * *')) // Build at 2 am every day
             }
 
