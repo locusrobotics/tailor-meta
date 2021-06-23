@@ -12,6 +12,7 @@ def call(Map args) {
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
 
+  def timestamp = new Date().format('yyyyMMdd.HHmmss')
   def recipes_yaml = 'rosdistro/config/recipes.yaml'
   def common_config = [:]
 
@@ -95,6 +96,7 @@ def call(Map args) {
       string(name: 'apt_repo', value: common_config['apt_repo']),
       string(name: 'docker_registry', value: common_config['docker_registry']),
       string(name: 'tailor_meta', value: tailor_meta),
+      string(name: 'timestamp', value: timestamp),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
     ]
