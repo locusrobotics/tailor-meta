@@ -97,6 +97,7 @@ def call(Map args) {
       string(name: 'docker_registry', value: common_config['docker_registry']),
       string(name: 'tailor_meta', value: tailor_meta),
       string(name: 'timestamp', value: timestamp),
+      string(name: 'python_version', value: common_config['python_version']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
     ]
@@ -134,7 +135,7 @@ def call(Map args) {
 
             def triggers = []
 
-            if (getBuildType() == BuildType.HOTDOG) {
+            if (getBuildType() == BuildType.HOTDOG || args["nightly"]) {
               triggers.add(cron('0 2 * * *')) // Build at 2 am every day
             }
 
