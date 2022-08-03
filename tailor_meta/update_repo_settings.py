@@ -43,7 +43,8 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
             if deploy:
                 gh_repo.edit(allow_merge_commit=False,
                              allow_rebase_merge=False,
-                             allow_squash_merge=True)
+                             allow_squash_merge=True,
+                             delete_branch_on_merge=True)
 
             # Protect branch
             branch = gh_repo.get_branch(repository_data.get_data()["source"]["version"])
