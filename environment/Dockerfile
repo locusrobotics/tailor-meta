@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   python3-pip \
   python3-setuptools \
   python3-wheel \
+  build-essential \
   git
 
 COPY tailor-meta tailor-meta
