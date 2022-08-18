@@ -73,7 +73,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
 
             new_jenkinsfile = Environment(loader=BaseLoader()).from_string(JENKINSFILE_TEMPLATE).render(**context)
             try:
-                old_jenkinsfile = gh_repo.get_file_contents(path="/Jenkinsfile", ref=branch)
+                old_jenkinsfile = gh_repo.get_contents(path="/Jenkinsfile", ref=branch)
 
                 if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
                     click.echo("Updating existing file...", err=True)
