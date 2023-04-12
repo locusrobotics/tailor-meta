@@ -32,7 +32,13 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
             url = repository_data.source_repository.url
 
             gh_repo_name = urlsplit(url).path[len('/'):-len('.git')]
-            gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
+            try:
+                gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
+            except UnknownObjectException:
+                raise KeyError(
+                    f"Please check if the repo exists or if permissions are restrictive"
+                )
+
 
             # Remove wikis and projects
             if deploy:
