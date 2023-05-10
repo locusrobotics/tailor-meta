@@ -66,8 +66,8 @@ def call(Map args) {
                   def colcon_path_args = "--merge-install --base-paths package --test-result-base test_results"
 
                   // TODO(pbovbel) pull from last rosdistro build artifact? or from s3?
-                  def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-g -O3 -fext-numeric-literals' " +
-                                          "-DCMAKE_CXX_STANDARD='20' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
+                  def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-g -O3 -fext-numeric-literals -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DBOOST_ALLOW_DEPRECATED_HEADERS' " +
+                                          "-DCMAKE_CXX_STANDARD='17' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
