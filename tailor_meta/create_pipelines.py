@@ -50,9 +50,13 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
     for distro_name, _ in common_options['distributions'].items():
 
         distro = rosdistro.get_distribution(index, distro_name)
-        allowed_distros = common_options['distributions'][distro_name]['os']
-        # If allowed distros is empty, because we used [] in recipes, use all distros
-        if not allowed_distros:
+        try:
+            allowed_distros = common_options['distributions'][distro_name]['os']
+            # If allowed distros is empty, because we used [] in recipes, use all distros
+            if not allowed_distros:
+                allowed_distros = all_distros
+        except KeyError:
+            # If ros distro doesn't have distros configured, use all distros
             allowed_distros = all_distros
 
         for repo_name, repository_data in distro.repositories.items():
