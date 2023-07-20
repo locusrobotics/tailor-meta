@@ -43,17 +43,28 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
 
     common_options = recipes['common']
 
+    all_distros = [distro for distros in recipes['os'].values() for distro in distros]
+
     jenkins_jobs = []
 
     for distro_name, _ in common_options['distributions'].items():
 
         distro = rosdistro.get_distribution(index, distro_name)
+        try:
+            allowed_distros = common_options['distributions'][distro_name]['os']
+            # If allowed distros is empty, because we used [] in recipes, use all distros
+            if not allowed_distros:
+                allowed_distros = all_distros
+        except KeyError:
+            # If ros distro doesn't have distros configured, use all distros
+            allowed_distros = all_distros
 
         for repo_name, repository_data in distro.repositories.items():
             if not repository_data.source_repository or not repository_data.source_repository.test_commits:
                 continue
 
             click.echo(f"Managing Jenkinsfile for repo {repo_name}", err=True)
+
             url = repository_data.source_repository.url
             branch = repository_data.source_repository.version
 
@@ -67,7 +78,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 'rosdistro_name': distro_name,
                 'release_track': release_track,
                 'release_label': release_label,
-                'distributions': [distro for distros in recipes['os'].values() for distro in distros],
+                'distributions': allowed_distros,
                 'docker_registry': common_options['docker_registry'],
             }
 
