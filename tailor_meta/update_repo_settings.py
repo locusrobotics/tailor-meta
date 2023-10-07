@@ -55,7 +55,10 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
             # Protect branch
             branch = gh_repo.get_branch(repository_data.get_data()["source"]["version"])
             if deploy:
-                branch.edit_protection(strict=True, required_approving_review_count=1)
+                if release_track == "hotdog":
+                  branch.edit_protection(strict=True, required_approving_review_count=1)
+                else: # don't require PR to commit to release branches, to enable quicker cherry picking
+                  branch.edit_protection(strict=True)
 
             # Create label
             if deploy:
