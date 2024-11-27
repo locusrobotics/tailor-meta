@@ -77,6 +77,8 @@ def call(Map args) {
                       rosdep install --from-paths package --ignore-src -y &&
                       colcon build $colcon_path_args $colcon_build_args &&
                       colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
+                      # run find path integration
+                      ls ll
                     """)
                     echo('↑↑↑ TEST OUTPUT ↑↑↑')
                     junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
