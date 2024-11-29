@@ -89,7 +89,7 @@ pipeline {
       }
     }
 
-    stage("Update repositories") {
+    /*stage("Update repositories") {
       agent any
       steps {
         script {
@@ -135,6 +135,6 @@ pipeline {
           deleteDir()
         }
       }
-    }
+    }*/
   }
 }
