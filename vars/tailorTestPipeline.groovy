@@ -82,6 +82,7 @@ def call(Map args) {
                       # Source the build
                       source install/setup.bash
                       # Run an integration test
+                      trap "echo 'Caught SIGINT'; exit 0" SIGINT
                       local-sim test /opt/locusrobotics/hotdog/dev/ros1/share/rst_integration_tests/tests/speed_limit
                     """)
                     echo('↑↑↑ TEST OUTPUT ↑↑↑')
