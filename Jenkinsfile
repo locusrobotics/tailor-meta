@@ -105,7 +105,7 @@ pipeline {
                 script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
                         "--github-key $github_token --meta-branch 0.1.24 " +
                         "--release-track hotdog --release-label hotdog " +
-                        "--rosdistro-job $params.rosdistro_job ${params.deploy ? '--deploy' : ''}",
+                        "--rosdistro-job hotdog ${params.deploy ? '--deploy' : ''}",
                 returnStdout: true).trim()
               sh(
                 script: "update_repo_settings --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
