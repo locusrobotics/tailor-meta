@@ -144,7 +144,7 @@ def call(Map args) {
                 daysToKeepStr: daysToKeep(), numToKeepStr: numToKeep(),
                 artifactDaysToKeepStr: daysToKeep(), artifactNumToKeepStr: numToKeep()
               )),
-              pipelineTriggers(triggers)
+              //pipelineTriggers(triggers)
             ])
 
             dir('rosdistro') {
