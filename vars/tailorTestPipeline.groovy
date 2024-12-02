@@ -30,21 +30,21 @@ def call(Map args) {
         steps {
           script {
             sh 'env'
-            def triggers = []
+            //def triggers = []
             library("tailor-meta@$tailor_meta")
             cancelPreviousBuilds()
 
             // Only build master or release branches automatically, feature branches require SCM or manual trigger.
-            if (env.BRANCH_NAME == source_branch) {
-              triggers.add(upstream(upstreamProjects: "$rosdistro_job", threshold: hudson.model.Result.SUCCESS))
-            }
+            //if (env.BRANCH_NAME == source_branch) {
+            //  triggers.add(upstream(upstreamProjects: "$rosdistro_job", threshold: hudson.model.Result.SUCCESS))
+            //}
 
             properties([
               buildDiscarder(logRotator(
                 artifactDaysToKeepStr: days_to_keep.toString(), artifactNumToKeepStr: num_to_keep.toString(),
                 daysToKeepStr: days_to_keep.toString(), numToKeepStr: num_to_keep.toString()
               )),
-              pipelineTriggers(triggers)
+              //pipelineTriggers(triggers)
             ])
           }
         }
@@ -70,6 +70,7 @@ def call(Map args) {
                                           "-DCMAKE_CXX_STANDARD='17' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
+                             
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     echo('↓↓↓ TEST OUTPUT ↓↓↓')
                     sh("""#!/bin/bash
