@@ -89,7 +89,7 @@ pipeline {
       }
     }
 
-    /*stage("Update repositories") {
+    stage("Update repositories") {
       agent any
       steps {
         script {
@@ -110,7 +110,7 @@ pipeline {
               sh(
                 script: "update_repo_settings --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
                         "--github-key $github_token ${params.deploy ? '--deploy' : ''} " +
-                        "--release-track $params.release_track")
+                        "--release-track hotdog")
               repositories = readYaml(text: repositories_yaml)
             }
           }
@@ -135,6 +135,6 @@ pipeline {
           deleteDir()
         }
       }
-    }*/
+    }
   }
 }
