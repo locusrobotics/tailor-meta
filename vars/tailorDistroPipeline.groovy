@@ -24,7 +24,7 @@ def call(Map args) {
     } else if (env.BRANCH_NAME == 'master') {
       return BuildType.HOTDOG
     } else if (env.BRANCH_NAME.startsWith('feature/')) {
-      return BuildType.HOTDOG
+      return BuildType.FEATURE
     } else {
       return BuildType.TRIVIAL
     }
@@ -157,12 +157,12 @@ def call(Map args) {
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
             if (getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]) {
               withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
-                s3Upload(
+                //s3Upload(
                   // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
-                  bucket: common_config['apt_repo'] - 's3://',
-                  path: getBuildLabel(),
-                  includePathPattern: 'rosdistro/**, rosdep/**, config/**',
-                  workingDir: 'rosdistro',
+                //  bucket: common_config['apt_repo'] - 's3://',
+                //  path: getBuildLabel(),
+                //  includePathPattern: 'rosdistro/**, rosdep/**, config/**',
+                //  workingDir: 'rosdistro',
                 )
               }
             }
