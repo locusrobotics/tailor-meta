@@ -71,7 +71,7 @@ def call(Map args) {
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
                              
-                  test_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                  /*test_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     echo('↓↓↓ TEST OUTPUT ↓↓↓')
                     sh("""#!/bin/bash
                       source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
@@ -83,11 +83,20 @@ def call(Map args) {
                       # Source the build
                       # source install/setup.bash
                       # Run an integration test
-                      #trap "echo 'Caught SIGINT'; exit 0" SIGINT
-                      #local-sim test /opt/locusrobotics/hotdog/dev/ros1/share/rst_integration_tests/tests/speed_limit
+                      # trap "echo 'Caught SIGINT'; exit 0" SIGINT
+                      # local-sim test /opt/locusrobotics/hotdog/dev/ros1/share/rst_integration_tests/tests/speed_limit
                     """)
+                    */
+                    echo('↓↓↓ TEST OUTPUT ↓↓↓')
+                    test_image.withRun{
+                      sh(
+                        returnStatus: true,
+                        label: "Tests",
+                        script: """docker run -u 1000:1000 -v ${HOME}/tailor/ccache:/ccache:rq,z --entrypoint "/home/locus/test.sh" """) 
+                        archiveArtifacts '**/*.xml'
+                        junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true, skipPublishingChecks: true)
                     echo('↑↑↑ TEST OUTPUT ↑↑↑')
-                    junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
+
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
