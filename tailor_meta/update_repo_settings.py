@@ -55,7 +55,9 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
             # Protect branch
             branch = gh_repo.get_branch(repository_data.get_data()["source"]["version"])
             if deploy:
-                branch.edit_protection(strict=True, required_approving_review_count=1)
+                branch.edit_protection(strict=True,
+                                       required_approving_review_count=1,
+                                       require_code_owner_reviews=True)
 
             # Create label
             if deploy:
