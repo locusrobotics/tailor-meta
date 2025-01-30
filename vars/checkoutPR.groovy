@@ -4,6 +4,6 @@ def call(String prNbr, String repo) {
         doGenerateSubmoduleConfigurations: false,
         extensions: [[$class: 'LocalBranch'], [$class: 'RelativeTargetDirectory', relativeTargetDir: "${repo}"]],
         userRemoteConfigs: [[refspec: "+refs/pull/${prNbr}/head:refs/remotes/origin/PR-${prNbr} +refs/heads/master:refs/remotes/origin/master",
-                            url: "https://${env.GITHUB_TOKEN}@github.com/locusrobotics/${repo}"]]
+                            url: "https://${this.env.GITHUB_TOKEN}@github.com/locusrobotics/${repo}"]]
     ])
 }
