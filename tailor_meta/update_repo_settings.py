@@ -6,11 +6,29 @@ import pathlib
 import rosdistro
 import sys
 
+from datetime import datetime, timezone
+from time import sleep
 from typing import Mapping, Any
 from urllib.parse import urlsplit
-from github.GithubException import UnknownObjectException
+from github.GithubException import UnknownObjectException, RateLimitExceededException
 
 from . import YamlLoadAction
+
+
+def gh_with_retry(client: github.Github, func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+    except RateLimitExceededException:
+        reset = client.get_rate_limit().core.reset
+        now = datetime.now(tz=timezone.utc)
+        seconds = (reset - now).total_seconds() + 1
+        click.echo(f"Rate limited by Github, waiting {seconds} seconds for point reset")
+        sleep(seconds)
+
+        click.echo(f"Points should be reset, remaining GH requests: {client.get_rate_limit().core.remaining}")
+        click.echo(f"Trying request again...")
+
+        func(*args, **kwargs)
 
 
 def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any],
@@ -42,27 +60,45 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
 
             # Remove wikis and projects
             if deploy:
-                gh_repo.edit(has_wiki=False,
-                             has_projects=False)
+                gh_with_retry(
+                    github_client,
+                    gh_repo.edit,
+                    has_wiki=False,
+                    has_projects=False
+                )
 
             # Set PR merge to squash
             if deploy:
-                gh_repo.edit(allow_merge_commit=False,
-                             allow_rebase_merge=False,
-                             allow_squash_merge=True,
-                             delete_branch_on_merge=True)
+                gh_with_retry(
+                    github_client,
+                    gh_repo.edit,
+                    allow_merge_commit=False,
+                    allow_rebase_merge=False,
+                    allow_squash_merge=True,
+                    delete_branch_on_merge=True
+                )
 
             # Protect branch
             branch = gh_repo.get_branch(repository_data.get_data()["source"]["version"])
             if deploy:
-                branch.edit_protection(strict=True, required_approving_review_count=1)
+                gh_with_retry(
+                    github_client,
+                    branch.edit_protection,
+                    strict=True,
+                    required_approving_review_count=1
+                )
 
             # Create label
             if deploy:
                 try:
                     gh_repo.get_label(release_track)
                 except UnknownObjectException:
-                    gh_repo.create_label(release_track, color="00ff00")
+                    gh_with_retry(
+                        github_client,
+                        gh_repo.create_label,
+                        release_track,
+                        color="00ff00"
+                    )
 
 
 def main():
