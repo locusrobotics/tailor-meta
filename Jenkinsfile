@@ -79,7 +79,7 @@ pipeline {
                 "--build-arg APT_REFRESH_KEY=${params.apt_refresh_key} .")
             }
             parent_image.inside() {
-              sh('pip3 install -e tailor-meta')
+              sh('pip3 install -e tailor-meta --break-system-packages')
             }
             docker.withRegistry(params.docker_registry, docker_credentials) {
               parent_image.push()
