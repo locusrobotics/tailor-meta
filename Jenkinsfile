@@ -73,7 +73,7 @@ pipeline {
               "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY .")
           }
           parent_image.inside() {
-            sh('pip3 install -e tailor-meta')
+            sh('pip3 install -e tailor-meta --break-system-packages')
           }
           docker.withRegistry(params.docker_registry, docker_credentials) {
             parent_image.push()
