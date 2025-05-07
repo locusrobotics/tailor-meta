@@ -1,4 +1,4 @@
-def call(String prNbr, String repo) {
+def call(String pr_num, String repo) {
     checkout([$class: 'GitSCM',
         branches: [[name: "FETCH_HEAD"]],
         doGenerateSubmoduleConfigurations: false,
