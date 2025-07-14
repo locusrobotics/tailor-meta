@@ -54,6 +54,32 @@ def call(Map args) {
         }
       }
 
+      stage("Dependency check") {
+        agent none
+        steps {
+          script {
+            def jobs = distributions.collectEntries { distribution ->
+              [distribution, { node {
+                try {
+                  def deps_image = docker.image(dependencyImage(distribution))
+                  docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
+
+                  deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    echo('↓↓↓ DEPS OUTPUT ↓↓↓')
+                    sh 'pwd && ls -al'
+                    echo('↑↑↑ DEPS OUTPUT ↑↑↑')
+                  }
+                } finally {
+                  library("tailor-meta@$tailor_meta")
+                  cleanDocker()
+                  deleteDir()
+                }
+              }}]
+            }
+            parallel(jobs)
+          }
+        }
+      }
 
       stage("Build and test") {
         agent none
