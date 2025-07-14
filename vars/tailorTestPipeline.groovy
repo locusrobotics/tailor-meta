@@ -67,6 +67,14 @@ def call(Map args) {
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     echo('↓↓↓ DEPS OUTPUT ↓↓↓')
                     sh 'pwd && ls -al'
+                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+                      sh "python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
+                      "--clean --ref $source_branch"
+                    }
+                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+                      sh "python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
+                      "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME}"
+                    }
                     echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                   }
                 } finally {
