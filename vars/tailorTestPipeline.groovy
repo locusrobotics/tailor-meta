@@ -9,6 +9,9 @@ def call(Map args) {
   String tailor_meta = args.get('tailor_meta')
   String source_branch = args.get('source_branch')
   String docker_registry = args.get('docker_registry')
+  
+  def recipes_yaml = 'rosdistro/config/recipes.yaml'
+  def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 
   def docker_credentials = 'ecr:us-east-1:tailor_aws'
 
@@ -16,6 +19,7 @@ def call(Map args) {
   def num_to_keep = 10
 
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
+  def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-jammy-rst-10629-dep-checker' }
 
   pipeline {
     agent none
@@ -46,6 +50,40 @@ def call(Map args) {
               )),
               pipelineTriggers(triggers)
             ])
+          }
+        }
+      }
+
+      stage("Dependency check") {
+        agent none
+        steps {
+          script {
+            def jobs = distributions.collectEntries { distribution ->
+              [distribution, { node {
+                try {
+                  def deps_image = docker.image(dependencyImage(distribution))
+                  docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
+
+                  deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    echo('↓↓↓ DEPS OUTPUT ↓↓↓')
+                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+                      sh "python3 pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
+                      "--clean --ref $source_branch"
+                    }
+                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+                      sh "python3 pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
+                      "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME}"
+                    }
+                    echo('↑↑↑ DEPS OUTPUT ↑↑↑')
+                  }
+                } finally {
+                  library("tailor-meta@$tailor_meta")
+                  cleanDocker()
+                  deleteDir()
+                }
+              }}]
+            }
+            parallel(jobs)
           }
         }
       }
