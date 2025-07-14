@@ -71,10 +71,13 @@ def call(Map args) {
                       sh "python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
                       "--clean --ref $release_track"
                     }
+                    sh 'pwd && ls -al'
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh "python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
                       "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME}"
                     }
+                    
+                    sh "rosdep check --from-paths workspace/src/ros1 --ignore-src"
                     echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                   }
                 } finally {
