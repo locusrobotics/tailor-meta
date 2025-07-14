@@ -78,6 +78,7 @@ def call(Map args) {
                     }
                     
                     sh "rosdep check --from-paths workspace/src/ros1 --ignore-src"
+                    sh "rosdep check --from-paths workspace/src/ros2 --ignore-src"
                     echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                   }
                 } finally {
