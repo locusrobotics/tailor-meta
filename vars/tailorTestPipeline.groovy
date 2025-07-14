@@ -9,7 +9,7 @@ def call(Map args) {
   String tailor_meta = args.get('tailor_meta')
   String source_branch = args.get('source_branch')
   String docker_registry = args.get('docker_registry')
-  
+
   def recipes_yaml = 'rosdistro/config/recipes.yaml'
   def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 
@@ -66,6 +66,7 @@ def call(Map args) {
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     echo('↓↓↓ DEPS OUTPUT ↓↓↓')
+                    sh 'pwd && ls -al'
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh "python3 pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
                       "--clean --ref $source_branch"
