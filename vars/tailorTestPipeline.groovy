@@ -69,7 +69,7 @@ def call(Map args) {
                     sh 'pwd && ls -al'
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh "python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
-                      "--clean --ref $source_branch"
+                      "--clean --ref $release_track"
                     }
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh "python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
