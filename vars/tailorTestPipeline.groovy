@@ -66,17 +66,17 @@ def call(Map args) {
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     echo('↓↓↓ DEPS OUTPUT ↓↓↓')
-                    sh '''
+                    sh("""#!/bin/bash
                       echo ">> Current dir: $(pwd)"
                       echo ">> Files:"
                       ls -al
                       echo ">> Find script:"
                       find . -name 'pull_rosdistro.py'
-                    '''
-                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
-                      sh "python3 pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
-                      "--clean --ref $source_branch"
-                    }
+                    """)
+                    // withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+                    //   sh "python3 pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
+                    //   "--clean --ref $source_branch"
+                    // }
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh "python3 pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
                       "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME}"
