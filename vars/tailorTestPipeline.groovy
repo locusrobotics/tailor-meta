@@ -72,7 +72,7 @@ def call(Map args) {
                     }
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh "python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
-                      "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME}"
+                      "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME} --rosdistro-name $rosdistro_name"
                     }
                     
                     sh "rosdep check --from-paths workspace/src/ros1 --ignore-src"
