@@ -65,7 +65,6 @@ def call(Map args) {
                   docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
-                    echo('↓↓↓ DEPS OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh "python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
                       "--clean --ref $release_track"
@@ -74,10 +73,24 @@ def call(Map args) {
                       sh "python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
                       "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME} --rosdistro-name $rosdistro_name"
                     }
-                    
+
+                    echo('↓↓↓ DEPS OUTPUT ↓↓↓')
                     sh "rosdep check --from-paths workspace/src/ros1 --ignore-src"
-                    // Temporarly disable the ros2 check
-                    // sh "rosdep check --from-paths workspace/src/ros2 --ignore-src"
+                    // Check ros2 folder
+                    sh("""#!/bin/bash
+                      ROSDEP_OUTPUT=\$(rosdep check --from-paths workspace/src/ros2 --ignore-src 2>&1)
+                      echo "\$ROSDEP_OUTPUT"
+                      
+                      FILTERED_ERRORS=\$(echo "\$ROSDEP_OUTPUT" | grep -E '^ERROR\\[' | grep -v '\\[message_runtime\\]')
+                      
+                      if [ -n "\$FILTERED_ERRORS" ]; then
+                        echo "Rosdep errors found:"
+                        echo "\$FILTERED_ERRORS"
+                        exit 1
+                      else
+                        echo "rosdep check passed (known issues ignored)"
+                      fi
+                    """)
                     echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                   }
                 } finally {
