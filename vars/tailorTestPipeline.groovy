@@ -69,14 +69,16 @@ def call(Map args) {
                       sh("""#!/bin/bash
                         if [ "$rosdistro_name" = "ros1" ]; then
                           source "\$ROS1_SOURCE"
+                          echo \$ROS1_SOURCE
                         elif [ "$rosdistro_name" = "ros2" ]; then
                           source "\$ROS2_SOURCE"
+                          echo \$ROS1_SOURCE
                         else
                           echo "Unknown ROS distribution: $rosdistro_name"
                           exit 1
                         fi
-
                         python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
+                        echo "Pulling distro repositories with"
                         python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
                           --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${BRANCH_NAME} --rosdistro-name $rosdistro_name
 
