@@ -68,9 +68,9 @@ def call(Map args) {
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
                         if [ "$rosdistro_name" = "ros1" ]; then
-                          source "$ROS1_SOURCE"
+                          source "\$ROS1_SOURCE"
                         elif [ "$rosdistro_name" = "ros2" ]; then
-                          source "$ROS2_SOURCE"
+                          source "\$ROS2_SOURCE"
                         else
                           echo "Unknown ROS distribution: $rosdistro_name"
                           exit 1
