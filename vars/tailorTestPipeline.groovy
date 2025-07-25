@@ -66,32 +66,25 @@ def call(Map args) {
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
-                      sh "python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
-                      "--clean --ref $release_track"
-                    }
-                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
-                      sh "python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
-                      "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME} --rosdistro-name $rosdistro_name"
-                    }
+                      sh("""#!/bin/bash
+                        if [ "$rosdistro_name" = "ros1" ]; then
+                          source "$ROS1_SOURCE"
+                        elif [ "$rosdistro_name" = "ros2" ]; then
+                          source "$ROS2_SOURCE"
+                        else
+                          echo "Unknown ROS distribution: $rosdistro_name"
+                          exit 1
+                        fi
 
-                    echo('↓↓↓ DEPS OUTPUT ↓↓↓')
-                    sh "rosdep check --from-paths workspace/src/ros1 --ignore-src"
-                    // Check ros2 folder
-                    sh("""#!/bin/bash
-                      ROSDEP_OUTPUT=\$(rosdep check --from-paths workspace/src/ros2 --ignore-src 2>&1)
-                      echo "\$ROSDEP_OUTPUT"
-                      
-                      FILTERED_ERRORS=\$(echo "\$ROSDEP_OUTPUT" | grep -E '^ERROR\\[' | grep -v '\\[message_runtime\\]')
-                      
-                      if [ -n "\$FILTERED_ERRORS" ]; then
-                        echo "Rosdep errors found:"
-                        echo "\$FILTERED_ERRORS"
-                        exit 1
-                      else
-                        echo "rosdep check passed (known issues ignored)"
-                      fi
-                    """)
-                    echo('↑↑↑ DEPS OUTPUT ↑↑↑')
+                        python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
+                        python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
+                          --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${BRANCH_NAME} --rosdistro-name $rosdistro_name
+
+                        echo "↓↓↓ DEPS OUTPUT ↓↓↓"
+                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
+                        echo "↑↑↑ DEPS OUTPUT ↑↑↑"
+                      """)
+                    }
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
