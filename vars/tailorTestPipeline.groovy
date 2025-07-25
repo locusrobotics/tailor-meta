@@ -67,12 +67,14 @@ def call(Map args) {
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
+                        source /home/locus/.bashrc
+                        echo \$ROS1_SOURCE
                         if [ "$rosdistro_name" = "ros1" ]; then
                           source "\$ROS1_SOURCE"
                           echo \$ROS1_SOURCE
                         elif [ "$rosdistro_name" = "ros2" ]; then
                           source "\$ROS2_SOURCE"
-                          echo \$ROS1_SOURCE
+                          echo \$ROS2_SOURCE
                         else
                           echo "Unknown ROS distribution: $rosdistro_name"
                           exit 1
