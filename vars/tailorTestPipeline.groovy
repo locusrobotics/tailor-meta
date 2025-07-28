@@ -67,18 +67,28 @@ def call(Map args) {
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     echo('↓↓↓ DEPS OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
-                      sh "python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN " +
-                      "--clean --ref $release_track"
+                      sh("""#!/bin/bash
+                        set -e
+                        source /home/locus/.ros_env.sh
+
+                        if [ "$rosdistro_name" = "ros1" ]; then
+                          source "\$ROS1_SOURCE"
+                        elif [ "$rosdistro_name" = "ros2" ]; then
+                          source "\$ROS2_SOURCE"
+                        else
+                          echo "Unknown ROS distribution: $rosdistro_name"
+                          exit 1
+                        fi
+                        echo "Pulling rosdistro..."
+                        python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
+                        echo "Pulling distro repositories..."
+                        python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
+                          --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${BRANCH_NAME} --rosdistro-name $rosdistro_name
+
+                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
+                      """)
+                      echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                     }
-                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
-                      sh "python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN " +
-                      "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean --ref ${env.BRANCH_NAME} --rosdistro-name $rosdistro_name"
-                    }
-                    
-                    sh "rosdep check --from-paths workspace/src/ros1 --ignore-src"
-                    // Temporarly disable the ros2 check
-                    // sh "rosdep check --from-paths workspace/src/ros2 --ignore-src"
-                    echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
