@@ -65,6 +65,10 @@ def call(Map args) {
                   docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    echo('↓↓↓ LINTER OUTPUT ↓↓↓')
+                    echo "$rosdistro_job"
+                    echo "$JOB_NAME"
+                    echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                     echo('↓↓↓ DEPS OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
