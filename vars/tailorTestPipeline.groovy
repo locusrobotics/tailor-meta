@@ -94,7 +94,7 @@ def call(Map args) {
                         repo_name=\$(echo "$JOB_NAME" | cut -d'/' -f3)
                         echo "Running catkin_lint for repository: workspace/src/$rosdistro_name/\$repo_name"
                         cd workspace/src/$rosdistro_name/\$repo_name
-                        catkin_lint . -W0 --ignore unknown-package,order_violation
+                        catkin_lint . -W2 --ignore unknown-package,order_violation
                       """)
                     echo('↑↑↑ LINTER OUTPUT ↑↑↑')
                   }
