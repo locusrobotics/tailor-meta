@@ -65,14 +65,6 @@ def call(Map args) {
                   docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
-                    echo('↓↓↓ LINTER OUTPUT ↓↓↓')
-                    sh("""#!/bin/bash
-                      repo_name=\$(echo "$JOB_NAME" | cut -d'/' -f3)
-                      echo "Running catkin_lint for repository: workspace/src/$rosdistro_name/\$repo_name"
-                      cd workspace/src/$rosdistro_name/\$repo_name
-                      catkin_lint -W0 --ignore unknown-package,order_violation
-                    """)
-                    echo('↑↑↑ LINTER OUTPUT ↑↑↑')
                     echo('↓↓↓ DEPS OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
@@ -97,6 +89,14 @@ def call(Map args) {
                       """)
                       echo('↑↑↑ DEPS OUTPUT ↑↑↑')
                     }
+                    echo('↓↓↓ LINTER OUTPUT ↓↓↓')
+                      sh("""#!/bin/bash
+                        repo_name=\$(echo "$JOB_NAME" | cut -d'/' -f3)
+                        echo "Running catkin_lint for repository: workspace/src/$rosdistro_name/\$repo_name"
+                        cd workspace/src/$rosdistro_name/\$repo_name
+                        catkin_lint -W0 --ignore unknown-package,order_violation
+                      """)
+                    echo('↑↑↑ LINTER OUTPUT ↑↑↑')
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
