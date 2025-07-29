@@ -19,7 +19,7 @@ def call(Map args) {
   def num_to_keep = 10
 
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
-  def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
+  def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-jammy-rst-10629-dep-checker' }
 
   pipeline {
     agent none
