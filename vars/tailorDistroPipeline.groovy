@@ -53,7 +53,7 @@ def call(Map args) {
       case BuildType.HOTDOG:
         return getBuildTrack()
       case BuildType.FEATURE:
-        return env.BRANCH_NAME - 'feature/'
+        return env.BRANCH_NAME.replaceFirst("feature/", "feature-")
       case BuildType.TRIVIAL:
         return null
     }
