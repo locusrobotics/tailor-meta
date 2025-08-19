@@ -60,23 +60,25 @@ pipeline {
           stash(name: 'source', includes: 'tailor-meta/**')
           def parent_image_label = parentImage(params.release_label, params.docker_registry)
           def parent_image = docker.image(parent_image_label)
-          try {
-            docker.withRegistry(params.docker_registry, docker_credentials) { parent_image.pull() }
-          } catch (all) {
-            echo("Unable to pull ${parent_image_label} as a build cache")
-          }
+          withEnv(['DOCKER_BUILDKIT=1']) {
+            try {
+              docker.withRegistry(params.docker_registry, docker_credentials) { parent_image.pull() }
+            } catch (all) {
+              echo("Unable to pull ${parent_image_label} as a build cache")
+            }
 
-          withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
-            parent_image = docker.build(parent_image_label,
-              "-f tailor-meta/environment/Dockerfile --cache-from ${parent_image_label} " +
-              "--build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID " +
-              "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY .")
-          }
-          parent_image.inside() {
-            sh('pip3 install -e tailor-meta')
-          }
-          docker.withRegistry(params.docker_registry, docker_credentials) {
-            parent_image.push()
+            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+              parent_image = docker.build(parent_image_label,
+                "-f tailor-meta/environment/Dockerfile --cache-from ${parent_image_label} " +
+                "--build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID " +
+                "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY .")
+            }
+            parent_image.inside() {
+              sh('pip3 install -e tailor-meta')
+            }
+            docker.withRegistry(params.docker_registry, docker_credentials) {
+              parent_image.push()
+            }
           }
         }
       }
