@@ -84,6 +84,10 @@ def call(Map args) {
     }
   }
 
+  def cal = Calendar.getInstance(TimeZone.getTimeZone('UTC'))
+  cal.setTime(new Date())
+  def weekNum = String.format("%d-W%02d", cal.get(Calendar.YEAR), cal.get(Calendar.WEEK_OF_YEAR))
+
   // (pbovbel) Currently all sub-pipelines use the same parameters, even if some of them are unused.
   // This may need to change in the future.
   def createJobParameters = {
@@ -100,6 +104,8 @@ def call(Map args) {
       string(name: 'python_version', value: common_config['python_version']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
+      booleanParam(name: 'invalidate_cache', value: params.invalidate_cache),
+      string(name: 'apt_refresh_key', value: weekNum)
     ]
   }
 
@@ -116,6 +122,7 @@ def call(Map args) {
 
     parameters {
       booleanParam(name: 'force_mirror', defaultValue: false)
+      booleanParam(name: 'invalidate_cache', defaultValue: false)
     }
 
     options {
