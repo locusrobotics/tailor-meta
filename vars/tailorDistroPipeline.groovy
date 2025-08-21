@@ -84,6 +84,12 @@ def call(Map args) {
     }
   }
 
+  def weekNum = sh(
+    script: 'date -u +%G-W%V',
+    returnStdout: true,
+    label: 'Get week number'
+  ).trim()
+
   // (pbovbel) Currently all sub-pipelines use the same parameters, even if some of them are unused.
   // This may need to change in the future.
   def createJobParameters = {
@@ -101,6 +107,7 @@ def call(Map args) {
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
       booleanParam(name: 'invalidate_cache', value: params.invalidate_cache),
+      string(name: 'apt_refresh_key', value: weekNum)
     ]
   }
 
