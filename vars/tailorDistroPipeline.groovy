@@ -100,6 +100,7 @@ def call(Map args) {
       string(name: 'python_version', value: common_config['python_version']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
+      booleanParam(name: 'invalidate_cache', value: params.invalidate_cache),
     ]
   }
 
@@ -116,6 +117,7 @@ def call(Map args) {
 
     parameters {
       booleanParam(name: 'force_mirror', defaultValue: false)
+      booleanParam(name: 'invalidate_cache', defaultValue: false)
     }
 
     options {
