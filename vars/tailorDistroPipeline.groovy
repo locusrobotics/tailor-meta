@@ -84,11 +84,9 @@ def call(Map args) {
     }
   }
 
-  def weekNum = sh(
-    script: 'date -u +%G-W%V',
-    returnStdout: true,
-    label: 'Get week number'
-  ).trim()
+  def cal = Calendar.getInstance(TimeZone.getTimeZone('UTC'))
+  cal.setTime(new Date())
+  def weekNum = String.format("%d-W%02d", cal.get(Calendar.YEAR), cal.get(Calendar.WEEK_OF_YEAR))
 
   // (pbovbel) Currently all sub-pipelines use the same parameters, even if some of them are unused.
   // This may need to change in the future.
