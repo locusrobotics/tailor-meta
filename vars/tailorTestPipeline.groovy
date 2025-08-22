@@ -10,12 +10,16 @@ def call(Map args) {
   String source_branch = args.get('source_branch')
   String docker_registry = args.get('docker_registry')
 
+  def recipes_yaml = 'rosdistro/config/recipes.yaml'
+  def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
+
   def docker_credentials = 'ecr:us-east-1:tailor_aws'
 
   def days_to_keep = 10
   def num_to_keep = 10
 
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
+  def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
 
   pipeline {
     agent none
@@ -46,6 +50,53 @@ def call(Map args) {
               )),
               pipelineTriggers(triggers)
             ])
+          }
+        }
+      }
+
+      stage("Dependency check") {
+        agent none
+        steps {
+          script {
+            def jobs = distributions.collectEntries { distribution ->
+              [distribution, { node {
+                try {
+                  def deps_image = docker.image(dependencyImage(distribution))
+                  docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
+
+                  deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    echo('↓↓↓ DEPS OUTPUT ↓↓↓')
+                    withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+                      sh("""#!/bin/bash
+                        source \$BUNDLE_ROOT/$rosdistro_name/setup.bash
+                        echo "Pulling rosdistro..."
+                        python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
+                        echo "Pulling distro repositories..."
+                        python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
+                          --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${BRANCH_NAME} --rosdistro-name $rosdistro_name
+
+                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
+                      """)
+                      echo('↑↑↑ DEPS OUTPUT ↑↑↑')
+                    }
+                    echo('↓↓↓ LINTER OUTPUT ↓↓↓')
+                      sh("""#!/bin/bash
+                        source \$BUNDLE_ROOT/$rosdistro_name/setup.bash
+                        repo_name=\$(echo "$JOB_NAME" | cut -d'/' -f3)
+                        echo "Running catkin_lint for repository: workspace/src/$rosdistro_name/\$repo_name"
+                        cd workspace/src/$rosdistro_name/\$repo_name
+                        catkin_lint . -W2 --ignore unknown-package,order_violation,literal_project_name,shadowed_find
+                      """)
+                    echo('↑↑↑ LINTER OUTPUT ↑↑↑')
+                  }
+                } finally {
+                  library("tailor-meta@$tailor_meta")
+                  cleanDocker()
+                  deleteDir()
+                }
+              }}]
+            }
+            parallel(jobs)
           }
         }
       }
