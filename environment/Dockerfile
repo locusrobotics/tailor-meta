@@ -1,4 +1,4 @@
-FROM ubuntu:jammy
+FROM ubuntu:noble
 
 LABEL tailor="environment"
 
@@ -12,8 +12,10 @@ ENV AWS_SECRET_ACCESS_KEY ${AWS_SECRET_ACCESS_KEY}
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV PYTHONUNBUFFERED 1
+ARG APT_REFRESH_KEY
 
 RUN sed -i 's/archive.ubuntu.com/us-east-1.ec2.&/g' /etc/apt/sources.list
+RUN echo "APT refresh key=${APT_REFRESH_KEY}"
 RUN apt-get update && apt-get install --no-install-recommends -y locales curl gnupg1 gpgv1 sudo
 RUN locale-gen en_US.UTF-8
 ENV LANG en_US.UTF-8
@@ -27,10 +29,11 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   git
 
 COPY tailor-meta tailor-meta
-RUN pip3 install -e tailor-meta
+RUN pip3 install -e tailor-meta --break-system-packages
 
-# Create non-root user
-RUN groupadd -r tailor && useradd -ms /bin/bash -g tailor -G sudo tailor
+# Rename default ubuntu user to tailor
+RUN usermod -md /home/tailor -s /bin/bash -l tailor ubuntu
+RUN groupmod -n tailor ubuntu
 RUN echo "tailor ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers
 USER tailor
 RUN mkdir -p /home/tailor && \
