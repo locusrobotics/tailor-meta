@@ -54,7 +54,7 @@ def call(Map args) {
         }
       }
 
-      stage("Dependency check") {
+      stage("Pre-build checks") {
         agent none
         steps {
           script {
@@ -65,7 +65,7 @@ def call(Map args) {
                   docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
-                    echo('↓↓↓ DEPS OUTPUT ↓↓↓')
+                    echo('↓↓↓ ROSDEP OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
                         source \$BUNDLE_ROOT/$rosdistro_name/setup.bash
@@ -77,7 +77,7 @@ def call(Map args) {
 
                         rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
                       """)
-                      echo('↑↑↑ DEPS OUTPUT ↑↑↑')
+                      echo('↑↑↑ ROSDEP OUTPUT ↑↑↑')
                     }
                     echo('↓↓↓ LINTER OUTPUT ↓↓↓')
                       sh("""#!/bin/bash
@@ -96,7 +96,9 @@ def call(Map args) {
                 }
               }}]
             }
-            parallel(jobs)
+            warnError('Pre-build checks error'){
+              parallel(jobs)
+            }
           }
         }
       }
