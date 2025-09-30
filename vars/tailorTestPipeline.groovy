@@ -97,7 +97,9 @@ def call(Map args) {
                 }
               }}]
             }
-            parallel(jobs, failFast: false)
+            warnError('Rosdep check errors'){
+              parallel(jobs)
+            }
           }
         }
       }
