@@ -54,7 +54,7 @@ def call(Map args) {
         }
       }
 
-      stage("Dependency check") {
+      stage("Rosdep check") {
         agent none
         steps {
           script {
@@ -97,7 +97,7 @@ def call(Map args) {
                 }
               }}]
             }
-            parallel(jobs)
+            parallel(jobs, failFast: false)
           }
         }
       }
