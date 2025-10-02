@@ -15,7 +15,7 @@ def call(Map args) {
   def days_to_keep = 10
   def num_to_keep = 10
 
-  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-jammy-feature-ci-pre-commit'}
+  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-noble-feature-ci-pre-commit'}
 
   pipeline {
     agent none
