@@ -58,6 +58,11 @@ def call(Map args) {
               [distribution, { node {
                 try {
                   echo(env.GIT_URL)
+                  def repoName = sh(
+                    script: 'echo "$JOB_NAME" | cut -d"/" -f3',
+                    returnStdout: true
+                  ).trim()
+                  echo "repoName = ${repoName}"
                   def repo_name = 'locus_deployment'
                   dir(repo_name) {
                     checkout(scm)
