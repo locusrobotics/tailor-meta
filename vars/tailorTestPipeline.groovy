@@ -57,13 +57,11 @@ def call(Map args) {
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
-                  echo(env.GIT_URL)
-                  def repoName = sh(
+                  def repo_name = sh(
                     script: 'echo "$JOB_NAME" | cut -d"/" -f3',
                     returnStdout: true
                   ).trim()
-                  echo "repoName = ${repoName}"
-                  def repo_name = 'locus_deployment'
+
                   dir(repo_name) {
                     checkout(scm)
                   }
@@ -81,15 +79,7 @@ def call(Map args) {
                     dir(repo_name){
                       echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
-                        sh('''#!/bin/bash
-                          pwd
-                          ls -la
-                          REPO_ROOT=$(git rev-parse --show-toplevel)
-                          REPO_NAME=$(basename "$REPO_ROOT")
-                          echo $REPO_ROOT
-                          echo $REPO_NAME
-                          git locus-pre-commit-all
-                        ''')
+                        sh('git locus-pre-commit-all')
                       }
                       echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
                     }
