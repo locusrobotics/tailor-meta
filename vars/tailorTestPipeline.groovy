@@ -15,7 +15,7 @@ def call(Map args) {
   def days_to_keep = 10
   def num_to_keep = 10
 
-  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-jammy-feature-ci-pre-commit'}
+  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
 
   pipeline {
     agent none
@@ -57,13 +57,18 @@ def call(Map args) {
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
-                  dir('package') {
+                  def repository_dir = sh(
+                    script: 'echo "$JOB_NAME" | cut -d"/" -f3',
+                    returnStdout: true
+                  ).trim()
+
+                  dir(repository_dir) {
                     checkout(scm)
                   }
                   def test_image = docker.image(testImage(distribution))
                   docker.withRegistry(docker_registry, docker_credentials) { test_image.pull() }
 
-                  def colcon_path_args = "--merge-install --base-paths package --test-result-base test_results"
+                  def colcon_path_args = "--merge-install --base-paths ${repository_dir} --test-result-base test_results"
 
                   // TODO(pbovbel) pull from last rosdistro build artifact? or from s3?
                   def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-g -O3 -fext-numeric-literals -march=haswell -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DBOOST_ALLOW_DEPRECATED_HEADERS' " +
@@ -71,7 +76,7 @@ def call(Map args) {
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
-                    dir('package'){
+                    dir(repository_dir){
                       echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
                         sh('git locus-pre-commit-all')
@@ -82,7 +87,7 @@ def call(Map args) {
                     echo('↓↓↓ TEST OUTPUT ↓↓↓')
                     sh("""#!/bin/bash
                       source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
-                      rosdep install --from-paths package --ignore-src -y &&
+                      rosdep install --from-paths ${repository_dir} --ignore-src -y &&
                       colcon build $colcon_path_args $colcon_build_args &&
                       colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
                     """)
