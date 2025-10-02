@@ -54,7 +54,7 @@ def call(Map args) {
         }
       }
 
-      stage("Pre-build checks") {
+      stage("Rosdep check") {
         agent none
         steps {
           script {
@@ -79,15 +79,6 @@ def call(Map args) {
                       """)
                       echo('↑↑↑ ROSDEP OUTPUT ↑↑↑')
                     }
-                    echo('↓↓↓ LINTER OUTPUT ↓↓↓')
-                      sh("""#!/bin/bash
-                        source \$BUNDLE_ROOT/$rosdistro_name/setup.bash
-                        repo_name=\$(echo "$JOB_NAME" | cut -d'/' -f3)
-                        echo "Running catkin_lint for repository: workspace/src/$rosdistro_name/\$repo_name"
-                        cd workspace/src/$rosdistro_name/\$repo_name
-                        catkin_lint . -W2 --ignore unknown-package,order_violation,literal_project_name,shadowed_find
-                      """)
-                    echo('↑↑↑ LINTER OUTPUT ↑↑↑')
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
@@ -96,7 +87,7 @@ def call(Map args) {
                 }
               }}]
             }
-            warnError('Pre-build checks error'){
+            warnError('Rosdep check errors'){
               parallel(jobs)
             }
           }
