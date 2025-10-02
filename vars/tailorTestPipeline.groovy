@@ -75,6 +75,7 @@ def call(Map args) {
                       echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
                         sh('''#!/bin/bash
+                          cat /opt/locusrobotics/git-hooks/pre-commit
                           export PYTHONUNBUFFERED=1
                           stdbuf -oL -eL /opt/locusrobotics/git-hooks/pre-commit --all
                         ''')
