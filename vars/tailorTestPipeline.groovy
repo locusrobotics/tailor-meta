@@ -76,6 +76,12 @@ def call(Map args) {
                       echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
                         sh('''#!/bin/bash
+                          pwd
+                          ls -la
+                          REPO_ROOT=$(git rev-parse --show-toplevel)
+                          REPO_NAME=$(basename "$REPO_ROOT")
+                          echo $REPO_ROOT
+                          echo $REPO_NAME
                           git locus-pre-commit-all
                         ''')
                       }
