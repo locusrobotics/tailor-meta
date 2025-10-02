@@ -71,11 +71,13 @@ def call(Map args) {
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
-                    echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
-                    warnError('Pre-commit errors detected'){
-                      sh('git locus-pre-commit-all')
+                    dir('package'){
+                      echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
+                      warnError('Pre-commit errors detected'){
+                        sh('git locus-pre-commit-all')
+                      }
+                      echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
                     }
-                    echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
 
                     echo('↓↓↓ TEST OUTPUT ↓↓↓')
                     sh("""#!/bin/bash
