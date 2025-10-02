@@ -57,7 +57,8 @@ def call(Map args) {
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
-                  def repo_name = (env.GIT_URL =~ /([^\/:]+)(?:\.git)?$/)[0][1]
+                  echo(env.GIT_URL)
+                  def repo_name = 'locus_deployment'
                   dir(repo_name) {
                     checkout(scm)
                   }
