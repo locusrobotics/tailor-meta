@@ -75,9 +75,7 @@ def call(Map args) {
                       echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
                         sh("""#!/bin/bash
-                          git config --local --unset core.hooksPath || true &&
-                          git config -l --show-origin &&
-                          git locus-pre-commit-all
+                          /opt/locusrobotics/git-hooks/pre-commit --all
                         """)
                       }
                       echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
