@@ -15,7 +15,7 @@ def call(Map args) {
   def days_to_keep = 10
   def num_to_keep = 10
 
-  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
+  def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-jammy-feature-ci-pre-commit'}
 
   pipeline {
     agent none
@@ -71,6 +71,12 @@ def call(Map args) {
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
+                    warnError('Pre-commit errors detected'){
+                      sh('git locus-pre-commit-all')
+                    }
+                    echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
+
                     echo('↓↓↓ TEST OUTPUT ↓↓↓')
                     sh("""#!/bin/bash
                       source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
