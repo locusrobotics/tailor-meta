@@ -74,7 +74,10 @@ def call(Map args) {
                     dir('package'){
                       echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
-                        sh('git locus-pre-commit-all')
+                        sh("""#!/bin/bash
+                          git config -l --show-origin || true &&
+                          git locus-pre-commit-all
+                        """)
                       }
                       echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
                     }
