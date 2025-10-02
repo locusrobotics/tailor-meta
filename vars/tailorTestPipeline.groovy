@@ -57,13 +57,14 @@ def call(Map args) {
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
-                  dir('package') {
+                  def repo_name = (env.GIT_URL =~ /([^\/:]+)(?:\.git)?$/)[0][1]
+                  dir(repo_name) {
                     checkout(scm)
                   }
                   def test_image = docker.image(testImage(distribution))
                   docker.withRegistry(docker_registry, docker_credentials) { test_image.pull() }
 
-                  def colcon_path_args = "--merge-install --base-paths package --test-result-base test_results"
+                  def colcon_path_args = "--merge-install --base-paths ${repo_name} --test-result-base test_results"
 
                   // TODO(pbovbel) pull from last rosdistro build artifact? or from s3?
                   def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-g -O3 -fext-numeric-literals -march=haswell -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DBOOST_ALLOW_DEPRECATED_HEADERS' " +
@@ -71,15 +72,11 @@ def call(Map args) {
                                           "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
-                    dir('package'){
+                    dir(repo_name){
                       echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
                         sh('''#!/bin/bash
-                          pwd
-                          ls -la
-                          pre-commit run --config /opt/locusrobotics/git-hooks/.pre-commit-config.yaml --hook-stage pre-commit --all-files
-                          export PYTHONUNBUFFERED=1
-                          stdbuf -oL -eL /opt/locusrobotics/git-hooks/pre-commit --all
+                          git locus-pre-commit-all
                         ''')
                       }
                       echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
@@ -88,7 +85,7 @@ def call(Map args) {
                     echo('↓↓↓ TEST OUTPUT ↓↓↓')
                     sh("""#!/bin/bash
                       source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
-                      rosdep install --from-paths package --ignore-src -y &&
+                      rosdep install --from-paths ${repo_name} --ignore-src -y &&
                       colcon build $colcon_path_args $colcon_build_args &&
                       colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
                     """)
