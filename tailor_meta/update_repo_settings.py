@@ -26,7 +26,7 @@ def gh_with_retry(client: github.Github, func, *args, **kwargs):
         sleep(seconds)
 
         click.echo(f"Points should be reset, remaining GH requests: {client.get_rate_limit().core.remaining}")
-        click.echo(f"Trying request again...")
+        click.echo("Trying request again...")
 
         func(*args, **kwargs)
 
@@ -54,7 +54,7 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
                 gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
             except UnknownObjectException:
                 raise KeyError(
-                    f"Please check if the repo exists or if permissions are restrictive"
+                    "Please check if the repo exists or if permissions are restrictive"
                 )
 
 
