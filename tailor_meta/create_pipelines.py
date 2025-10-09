@@ -33,6 +33,7 @@ tailorTestPipeline(
   // Docker registry where test image is stored
   docker_registry: '{{ docker_registry }}'
 )
+
 """
 
 
