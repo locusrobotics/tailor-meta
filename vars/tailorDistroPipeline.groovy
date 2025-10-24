@@ -182,19 +182,19 @@ def call(Map args) {
         }
       }
 
-      stage("Sub-pipeline: build distribution") {
-        agent none
-        when {
-          expression {
-            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-          }
-        }
-        steps {
-          script {
-            createTailorJob('tailor-distro', tailor_distro)
-          }
-        }
-      }
+      //stage("Sub-pipeline: build distribution") {
+      //  agent none
+      //  when {
+      //    expression {
+      //      getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+      //    }
+      //  }
+      //  steps {
+      //    script {
+      //      createTailorJob('tailor-distro', tailor_distro)
+      //    }
+      //  }
+      //}
 
       stage("Sub-pipeline: bake images") {
         agent none
