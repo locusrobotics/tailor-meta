@@ -6,10 +6,6 @@ def call(Map args) {
   pipeline {
     agent any
 
-    environment {
-        PYTHON = config.get('python', '/usr/bin/python3')
-    }
-
     stages {
       stage('Clone Repository') {
         steps {
@@ -20,7 +16,7 @@ def call(Map args) {
       stage('Set Up Virtual Environment') {
           steps {
               sh """
-                  ${PYTHON} -m venv venv
+                  /usr/bin/python3 -m venv venv
                   source venv/bin/activate
                   pip install --upgrade pip
               """
