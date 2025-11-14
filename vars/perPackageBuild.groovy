@@ -13,7 +13,7 @@ def call(Map args) {
     stages {
       stage('Clone Repository') {
         steps {
-          git branch: 'build-per-package', url: 'https://github.com/locusrobotics/tailor-distro.git')
+          git branch: 'build-per-package', url: 'https://github.com/locusrobotics/tailor-distro.git'
         }
       }
 
