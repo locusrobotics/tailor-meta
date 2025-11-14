@@ -16,7 +16,7 @@ def call(Map args) {
       stage('Set Up Virtual Environment') {
           steps {
               sh """
-                  /usr/bin/python3 -m venv venv
+                  /usr/bin/python3.10 -m venv venv
                   source venv/bin/activate
                   pip install --upgrade pip
               """
