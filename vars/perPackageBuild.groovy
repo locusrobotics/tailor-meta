@@ -31,7 +31,7 @@ def call(Map args) {
     agent none
 
     parameters {
-      string(name: 'rosdistro_job', defaultValue: '/ci/toydistro/master')
+      string(name: 'rosdistro_job', defaultValue: 'build-per-package')
       string(name: 'release_track', defaultValue: 'hotdog')
       string(name: 'release_label', defaultValue: 'hotdog')
       string(name: 'num_to_keep', defaultValue: '10')
@@ -53,32 +53,32 @@ def call(Map args) {
     }
 
     stages {
-      stage("Configure build parameters") {
-        agent { label('master') }
-        steps {
-          script {
-            sh('env')
+      //stage("Configure build parameters") {
+      //  agent { label('master') }
+      //  steps {
+      //    script {
+      //      sh('env')
 
-            properties([
-              buildDiscarder(logRotator(
-                daysToKeepStr: params.days_to_keep, numToKeepStr: params.num_to_keep,
-                artifactDaysToKeepStr: params.days_to_keep, artifactNumToKeepStr: params.num_to_keep
-              ))
-            ])
+      //      properties([
+      //        buildDiscarder(logRotator(
+      //          daysToKeepStr: params.days_to_keep, numToKeepStr: params.num_to_keep,
+      //          artifactDaysToKeepStr: params.days_to_keep, artifactNumToKeepStr: params.num_to_keep
+      //        ))
+      //      ])
 
-            copyArtifacts(
-              projectName: params.rosdistro_job,
-              selector: upstream(fallbackToLastSuccessful: true),
-            )
-            stash(name: 'rosdistro', includes: 'rosdistro/**')
-          }
-        }
-        post {
-          cleanup {
-            deleteDir()
-          }
-        }
-      }
+      //      copyArtifacts(
+      //        projectName: params.rosdistro_job,
+      //        selector: upstream(fallbackToLastSuccessful: true),
+      //      )
+      //      stash(name: 'rosdistro', includes: 'rosdistro/**')
+      //    }
+      //  }
+      //  post {
+      //    cleanup {
+      //      deleteDir()
+      //    }
+      //  }
+      //}
 
       stage("Build and test tailor-distro") {
         agent any
