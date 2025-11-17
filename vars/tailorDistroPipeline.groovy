@@ -17,17 +17,18 @@ def call(Map args) {
   def common_config = [:]
 
   def getBuildType = {
-    if (env.TAG_NAME != null) {
-      return BuildType.FINAL
-    } else if (env.BRANCH_NAME.startsWith('release/')) {
-      return BuildType.CANDIDATE
-    } else if (env.BRANCH_NAME == 'master') {
-      return BuildType.HOTDOG
-    } else if (env.BRANCH_NAME.startsWith('feature/')) {
-      return BuildType.FEATURE
-    } else {
-      return BuildType.TRIVIAL
-    }
+    //if (env.TAG_NAME != null) {
+    //  return BuildType.FINAL
+    //} else if (env.BRANCH_NAME.startsWith('release/')) {
+    //  return BuildType.CANDIDATE
+    //} else if (env.BRANCH_NAME == 'master') {
+    //  return BuildType.HOTDOG
+    //} else if (env.BRANCH_NAME.startsWith('feature/')) {
+    //  return BuildType.FEATURE
+    //} else {
+    //  return BuildType.TRIVIAL
+    //}
+    return BuildType.FEATURE
   }
 
   def getBuildTrack = {
