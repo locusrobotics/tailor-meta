@@ -54,7 +54,7 @@ def call(Map args) {
       case BuildType.HOTDOG:
         return getBuildTrack()
       case BuildType.FEATURE:
-        return env.GIT_BRANCH.replaceFirst("feature/", "feature-")
+        return 'feature-build-per-package'
       case BuildType.TRIVIAL:
         return null
     }
