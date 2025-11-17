@@ -17,18 +17,17 @@ def call(Map args) {
   def common_config = [:]
 
   def getBuildType = {
-    //if (env.TAG_NAME != null) {
-    //  return BuildType.FINAL
-    //} else if (env.BRANCH_NAME.startsWith('release/')) {
-    //  return BuildType.CANDIDATE
-    //} else if (env.BRANCH_NAME == 'master') {
-    //  return BuildType.HOTDOG
-    //} else if (env.BRANCH_NAME.startsWith('feature/')) {
-    //  return BuildType.FEATURE
-    //} else {
-    //  return BuildType.TRIVIAL
-    //}
-    return BuildType.FEATURE
+    if (env.TAG_NAME != null) {
+      return BuildType.FINAL
+    } else if (env.BRANCH_NAME.startsWith('release/')) {
+      return BuildType.CANDIDATE
+    } else if (env.BRANCH_NAME == 'master') {
+      return BuildType.HOTDOG
+    } else if (env.BRANCH_NAME.startsWith('feature/')) {
+      return BuildType.FEATURE
+    } else {
+      return BuildType.TRIVIAL
+    }
   }
 
   def getBuildTrack = {
@@ -54,7 +53,7 @@ def call(Map args) {
       case BuildType.HOTDOG:
         return getBuildTrack()
       case BuildType.FEATURE:
-        return 'feature-build-per-package'
+        return env.BRANCH_NAME.replaceFirst("feature/", "feature-")
       case BuildType.TRIVIAL:
         return null
     }
@@ -185,11 +184,11 @@ def call(Map args) {
 
       stage("Sub-pipeline: build distribution") {
         agent none
-        //when {
-        //  expression {
-        //    getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-        //  }
-        //}
+        when {
+          expression {
+            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+          }
+        }
         steps {
           script {
             createTailorJob('tailor-distro', tailor_distro)
