@@ -84,6 +84,11 @@ def call(Map args) {
         agent any
         steps {
           script {
+
+            // Debug
+            sh('env')
+            println("parentImage: " + parentImage)
+
             dir('tailor-distro') {
               checkout(scm)
             }
