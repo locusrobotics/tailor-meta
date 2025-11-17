@@ -66,10 +66,10 @@ def call(Map args) {
               ))
             ])
 
-            copyArtifacts(
-              projectName: params.rosdistro_job,
-              selector: upstream(fallbackToLastSuccessful: true),
-            )
+            //copyArtifacts(
+            //  projectName: params.rosdistro_job,
+            //  selector: upstream(fallbackToLastSuccessful: true),
+            //)
             stash(name: 'rosdistro', includes: 'rosdistro/**')
           }
         }
