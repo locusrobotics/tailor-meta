@@ -108,7 +108,7 @@ pipeline {
       }
     }
 
-    stage("Update repositories") {
+    stage("build graph") {
       agent any
       steps {
         script {
@@ -120,40 +120,99 @@ pipeline {
           parent_image.inside() {
             unstash(name: 'rosdistro')
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
-              def repositories_yaml = sh(
-                script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
-                        "--github-key $github_token --meta-branch $env.BRANCH_NAME " +
-                        "--release-track $params.release_track --release-label $params.release_label " +
-                        "--rosdistro-job $params.rosdistro_job ${params.deploy ? '--deploy' : ''}",
+              unstash(name: 'rosdistro')
+              // Generate recipe configuration files
+              def recipe_yaml = sh(
+                script: "create_recipes --recipes $recipes_yaml --recipes-dir $recipes_dir " +
+                        "--release-track $params.release_track --release-label $params.release_label --debian-version $params.timestamp",
                 returnStdout: true).trim()
-              sh(
-                script: "update_repo_settings --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
-                        "--github-key $github_token ${params.deploy ? '--deploy' : ''} " +
-                        "--release-track $params.release_track")
-              repositories = readYaml(text: repositories_yaml)
+
+              // Script returns a mapping of recipe labels and paths
+              recipes = readYaml(text: recipe_yaml)
+
+              distributions = readYaml(file: recipes_yaml)['os'].collect {
+                os, distribution -> distribution }.flatten()
+
+              // Stash each recipe configuration individually for parallel build nodes
+              recipes.each { recipe_label, recipe_path ->
+                stash(name: recipeStash(recipe_label), includes: recipe_path)
+              }
+
+              // Pull down distribution sources
+              withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+                sh "pull_distro_repositories --src-dir $src_dir --github-key $GITHUB_TOKEN " +
+                  "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean"
+                stash(name: srcStash(params.release_label), includes: "$src_dir/")
+              }
+            }
+              //def repositories_yaml = sh(
+              //  script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
+              //          "--github-key $github_token --meta-branch $env.BRANCH_NAME " +
+              //          "--release-track $params.release_track --release-label $params.release_label " +
+              //          "--rosdistro-job $params.rosdistro_job ${params.deploy ? '--deploy' : ''}",
+              //  returnStdout: true).trim()
+              //sh(
+              //  script: "update_repo_settings --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
+              //          "--github-key $github_token ${params.deploy ? '--deploy' : ''} " +
+              //          "--release-track $params.release_track")
+              //repositories = readYaml(text: repositories_yaml)
             }
           }
           unstash(name: 'source')
-          if (params.deploy && params.release_track == 'hotdog') {
-            // Only manage jenkins jobs from master branch
-            jobDsl(
-              targets: 'tailor-meta/jobs/tailorTestJob.groovy',
-              removedJobAction: 'DELETE',
-              additionalParameters: [
-                'repositories': repositories,
-                'credentials_id': 'tailor_github_keypass',
-                // this extracts the (hopefully) unique job name: '/ci/rosdistro/master' -> 'rosdistro'
-                'folder_name': "test/${params.rosdistro_job.split('/')[-2]}",
-              ]
-            )
+        }
+
+        post {
+          cleanup {
+            deleteDir()
           }
         }
-      }
-      post {
-        cleanup {
-          deleteDir()
-        }
-      }
     }
+    //stage("Update repositories") {
+    //  agent any
+    //  steps {
+    //    script {
+    //      def parent_image = docker.image(parentImage(params.release_label, params.docker_registry))
+    //      docker.withRegistry(params.docker_registry, docker_credentials) {
+    //        parent_image.pull()
+    //      }
+    //      def repositories = null
+    //      parent_image.inside() {
+    //        unstash(name: 'rosdistro')
+    //        withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
+    //          def repositories_yaml = sh(
+    //            script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
+    //                    "--github-key $github_token --meta-branch $env.BRANCH_NAME " +
+    //                    "--release-track $params.release_track --release-label $params.release_label " +
+    //                    "--rosdistro-job $params.rosdistro_job ${params.deploy ? '--deploy' : ''}",
+    //            returnStdout: true).trim()
+    //          sh(
+    //            script: "update_repo_settings --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
+    //                    "--github-key $github_token ${params.deploy ? '--deploy' : ''} " +
+    //                    "--release-track $params.release_track")
+    //          repositories = readYaml(text: repositories_yaml)
+    //        }
+    //      }
+    //      unstash(name: 'source')
+    //      if (params.deploy && params.release_track == 'hotdog') {
+    //        // Only manage jenkins jobs from master branch
+    //        jobDsl(
+    //          targets: 'tailor-meta/jobs/tailorTestJob.groovy',
+    //          removedJobAction: 'DELETE',
+    //          additionalParameters: [
+    //            'repositories': repositories,
+    //            'credentials_id': 'tailor_github_keypass',
+    //            // this extracts the (hopefully) unique job name: '/ci/rosdistro/master' -> 'rosdistro'
+    //            'folder_name': "test/${params.rosdistro_job.split('/')[-2]}",
+    //          ]
+    //        )
+    //      }
+    //    }
+    //  }
+    //  post {
+    //    cleanup {
+    //      deleteDir()
+    //    }
+    //  }
+    //}
   }
 }
