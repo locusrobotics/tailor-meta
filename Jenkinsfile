@@ -81,6 +81,7 @@ pipeline {
             }
             parent_image.inside() {
               sh('pip3 install -e tailor-meta --break-system-packages')
+              sh('pip3 install -e tailor-distro --break-system-packages')
             }
             docker.withRegistry(params.docker_registry, docker_credentials) {
               parent_image.push()
