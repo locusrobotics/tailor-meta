@@ -9,12 +9,12 @@ pipeline {
   agent none
 
   parameters {
-    string(name: 'rosdistro_job', defaultValue: '/ci/toydistro/master')
+    string(name: 'rosdistro_job', defaultValue: '/ci/rosdistro/master')
     string(name: 'release_track', defaultValue: 'hotdog')
-    string(name: 'release_label', defaultValue: 'hotdog')
+    string(name: 'release_label', defaultValue: 'build-per-package')
     string(name: 'num_to_keep', defaultValue: '10')
     string(name: 'days_to_keep', defaultValue: '10')
-    string(name: 'docker_registry')
+    string(name: 'docker_registry', defaultValue: 'https://878879728913.dkr.ecr.us-east-1.amazonaws.com/locus-tailor')
     booleanParam(name: 'deploy', defaultValue: false)
     booleanParam(name: 'invalidate_cache', defaultValue: false)
     string(name: 'apt_refresh_key')
