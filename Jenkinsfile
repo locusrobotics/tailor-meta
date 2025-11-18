@@ -10,6 +10,11 @@ def recipes_dir = workspace_dir + '/recipes'
 def src_dir = workspace_dir + '/src'
 def debian_dir = workspace_dir + '/debian'
 
+
+def debianStash = { recipe -> recipe + "-debian"}
+def packageStash = { recipe -> recipe + "-packages"}
+def recipeStash = { recipe -> recipe + "-recipes"}
+
 pipeline {
   agent none
 
