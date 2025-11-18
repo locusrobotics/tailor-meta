@@ -14,6 +14,7 @@ def debian_dir = workspace_dir + '/debian'
 def debianStash = { recipe -> recipe + "-debian"}
 def packageStash = { recipe -> recipe + "-packages"}
 def recipeStash = { recipe -> recipe + "-recipes"}
+def srcStash = { release -> release + '-src' }
 
 pipeline {
   agent none
