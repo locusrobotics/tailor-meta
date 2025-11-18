@@ -14,7 +14,7 @@ pipeline {
     string(name: 'release_label', defaultValue: 'build-per-package')
     string(name: 'num_to_keep', defaultValue: '10')
     string(name: 'days_to_keep', defaultValue: '10')
-    string(name: 'docker_registry', defaultValue: 'https://878879728913.dkr.ecr.us-east-1.amazonaws.com/locus-tailor')
+    string(name: 'docker_registry', defaultValue: 'https://084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-tailor')
     booleanParam(name: 'deploy', defaultValue: false)
     booleanParam(name: 'invalidate_cache', defaultValue: false)
     string(name: 'apt_refresh_key')
@@ -81,8 +81,18 @@ pipeline {
             }
             parent_image.inside() {
               sh('pip3 install -e tailor-meta --break-system-packages')
-              sh('pip3 install -e tailor-distro --break-system-packages')
+              //withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
+              //  sh "pull_distro_repositories --src-dir $src_dir --github-key $GITHUB_TOKEN " +
+              //    "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean"
+              //  stash(name: srcStash(params.release_label), includes: "$src_dir/")
+              //}
+              //sh(
+              //  script: "create_recipes --recipes $recipes_yaml --recipes-dir $recipes_dir " +
+              //        "--release-track $params.release_track --release-label $params.release_label --debian-version $params.timestamp"
+              //)
             }
+
+
             docker.withRegistry(params.docker_registry, docker_credentials) {
               parent_image.push()
             }
