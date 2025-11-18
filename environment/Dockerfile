@@ -26,7 +26,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   python3-setuptools \
   python3-wheel \
   build-essential \
-  git
+  git \
+  python3-apt
 
 COPY tailor-meta tailor-meta
 RUN pip3 install -e tailor-meta --break-system-packages
