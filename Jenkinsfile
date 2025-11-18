@@ -15,6 +15,7 @@ def debianStash = { recipe -> recipe + "-debian"}
 def packageStash = { recipe -> recipe + "-packages"}
 def recipeStash = { recipe -> recipe + "-recipes"}
 def srcStash = { release -> release + '-src' }
+def graphStash = { recipe -> recipe + "-graph"}
 
 pipeline {
   agent none
@@ -148,6 +149,7 @@ pipeline {
               // Stash each recipe configuration individually for parallel build nodes
               recipes.each { recipe_label, recipe_path ->
                 stash(name: recipeStash(recipe_label), includes: recipe_path)
+                sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
               }
 
               // Pull down distribution sources
@@ -157,7 +159,7 @@ pipeline {
                 stash(name: srcStash(params.release_label), includes: "$src_dir/")
               }
 
-              sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
+              //sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
               sh "blossom graph --workspace $src_dir --recipes $recipe_path"
             }
               //def repositories_yaml = sh(
