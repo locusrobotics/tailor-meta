@@ -5,6 +5,11 @@ def parentImage = { release, docker_registry -> docker_registry - "https://" + '
 def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
 def recipes_yaml = 'rosdistro/config/recipes.yaml'
 
+def workspace_dir = 'workspace'
+def recipes_dir = workspace_dir + '/recipes'
+def src_dir = workspace_dir + '/src'
+def debian_dir = workspace_dir + '/debian'
+
 pipeline {
   agent none
 
