@@ -18,6 +18,7 @@ pipeline {
     booleanParam(name: 'deploy', defaultValue: false)
     booleanParam(name: 'invalidate_cache', defaultValue: false)
     string(name: 'apt_refresh_key')
+    string(name: 'tailor_meta', defaultValue: 'build-per-package')
   }
 
   options {
