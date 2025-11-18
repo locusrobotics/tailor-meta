@@ -30,6 +30,7 @@ pipeline {
     booleanParam(name: 'invalidate_cache', defaultValue: false)
     string(name: 'apt_refresh_key')
     string(name: 'tailor_meta', defaultValue: 'build-per-package')
+    string(name: 'python_version', defaultValue: '3')
   }
 
   options {
@@ -155,6 +156,9 @@ pipeline {
                   "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean"
                 stash(name: srcStash(params.release_label), includes: "$src_dir/")
               }
+
+              sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
+              sh "blossom graph --workspace $src_dir --recipes $recipe_path"
             }
               //def repositories_yaml = sh(
               //  script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
