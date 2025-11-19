@@ -80,9 +80,6 @@ class Graph:
         apt_deps = set()
         source_deps = set()
 
-        if package.name == "catkin":
-            print("Adding catkin")
-
         for dep in dependencies:
             try:
                 definition = self._rosdep_view.lookup(dep)
