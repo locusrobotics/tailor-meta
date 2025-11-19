@@ -161,13 +161,14 @@ pipeline {
               //recipes.each { recipe_label, recipe_path ->
               //  sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
               //}
+              sh "rosdep resolve google-mock"
+              sh "rosdep update"
+              sh "rosdep resolve google-mock"
 
               //sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
               sh "blossom graph --workspace $workspace_dir --recipe $recipes_dir"
               //stash(name: )
-              sh "rosdep resolve google-mock"
-              sh "rosdep update"
-              sh "rosdep resolve google-mock"
+
               sh "blossom test --workspace $workspace_dir --recipe $recipes_dir --graph $workspace_dir/graphs/ubuntu-jammy-ros1-graph.yaml"
             }
               //def repositories_yaml = sh(
