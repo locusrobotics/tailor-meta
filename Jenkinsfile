@@ -164,6 +164,8 @@ pipeline {
 
               //sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
               sh "blossom graph --workspace $workspace_dir --recipe $recipes_dir"
+              //stash(name: )
+              sh "blossom test --workspace $workspace_dir --recipe $recipes_dir --graph $workspace_dir/graphs/ubuntu-jammy-ros1-graph.yaml"
             }
               //def repositories_yaml = sh(
               //  script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
