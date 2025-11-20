@@ -266,22 +266,25 @@ def call(Map args) {
 
                 sh "blossom build --workspace $workspace_dir --recipe $recipes_dir --graph $workspace_dir/graphs/ubuntu-jammy-ros1-graph.yaml"
 
-                def config = readYaml file: 'workspace/jobs/ubuntu-jammy-ros1.yaml'
-                    jobDsl scriptText: """
-                        ${config.packages.collect { pkg ->
-                            """
-                            job('${pkg.name}') {
-                                description('Build job for ${pkg.name}')
-                                steps {
-                                    sh "Would build ${pkg.name}!!!!"
-                                }
-                                ${pkg.dependencies.collect { dep ->
-                                    "publishers { downstream('${dep}', 'SUCCESS') }"
-                                }.join('\\n')}
-                            }
-                            """
-                        }.join('\\n'), sandbox: false}
+
+                def dslScript = config.packages.collect { pkg ->
+                    def downstreamJobs = pkg.dependencies.collect { dep ->
+                        "publishers { downstream('${dep}', 'SUCCESS') }"
+                    }.join('\n')
+
                     """
+                    job('${pkg.name}') {
+                        description('Build job for ${pkg.name}')
+                        steps {
+                            shell("Would build ${pkg.name}!!!!")
+                        }
+                        ${downstreamJobs}
+                    }
+                    """
+                }.join('\n')
+
+                jobDsl scriptText: dslScript, sandbox: false
+
               }
                 //def repositories_yaml = sh(
                 //  script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
