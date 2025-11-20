@@ -134,7 +134,7 @@ def call(Map args) {
           }
         }
 
-      stage("Build tailor-meta") {
+      stage("Build repos") {
         agent any
         steps {
           script {
