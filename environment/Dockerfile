@@ -27,7 +27,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   python3-wheel \
   build-essential \
   git \
-  python3-apt
+  python3-apt \
+  python3-rosdep
 
 # Inject the rosdep definitions from source
 COPY rosdistro/rosdep/rosdep.yaml /etc/ros/rosdep/rosdep.yaml
