@@ -1,6 +1,5 @@
 #!/usr/bin/env groovy
 
-
 def call(Map args) {
   def deploy = false
 
@@ -290,7 +289,17 @@ def call(Map args) {
 
                 sh "blossom build --workspace $workspace_dir --recipe $recipes_dir --graph $workspace_dir/graphs/ubuntu-jammy-ros1-graph.yaml"
 
-                generateJobsFromYaml("workspace/jobs/ubuntu-jammy-ros1.yaml")
+
+                def lib = library(
+                    identifier: "tailor-meta@${tailor_meta}",
+                    retriever: legacySCM([
+                        $class: 'GitSCM',
+                        userRemoteConfigs: [[url: "file://workspace/tailor-meta"]],
+                        branches: [[name: tailor_meta]]
+                    ])
+                )
+
+                lib.generateJobsFromYaml("workspace/jobs/ubuntu-jammy-ros1.yaml")
 
                 //def config = readYaml file: "workspace/jobs/ubuntu-jammy-ros1.yaml"
                 //def dslScript = config.packages.collect { pkg ->
