@@ -218,6 +218,7 @@ def call(Map args) {
             parent_image.inside() {
               unstash(name: 'rosdistro')
               unstash(name: 'tailor-meta')
+              def generateJobsFromYaml = load("tailor-meta/vars/generateJobsFromYaml.groovy")
               withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
                 unstash(name: 'rosdistro')
                 // Generate recipe configuration files
@@ -268,7 +269,6 @@ def call(Map args) {
 
 
 
-                def generateJobsFromYaml = load("tailor-meta/vars/generateJobsFromYaml.groovy")
                 generateJobsFromYaml("${workspace_dir}/jobs/ubuntu-jammy-ros1.yaml")
 
 
