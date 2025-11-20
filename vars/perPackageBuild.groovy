@@ -86,6 +86,8 @@ def call(Map args) {
             script {
               sh('env')
               library("tailor-meta@$tailor_meta")
+
+              stash(name: 'tailor-meta', includes: 'tailor-meta/**')
               //cancelPreviousBuilds()
 
               //echo "Build Type: ${getBuildType()}, Track:${getBuildTrack()}, Label: ${getBuildLabel()}"
@@ -140,7 +142,7 @@ def call(Map args) {
             //  checkout(scm)
             //}
             //stash(name: 'source', includes: 'tailor-meta/**')
-            unstash(name: 'source')
+            unstash(name: 'tailor-meta')
             def parent_image_label = parentImage(params.release_label, params.docker_registry)
             def parent_image = docker.image(parent_image_label)
             withEnv(['DOCKER_BUILDKIT=1']) {
