@@ -32,7 +32,7 @@ def call(Map args) {
     agent none
 
     parameters {
-      string(name: 'rosdistro_job', defaultValue: 'build-per-package')
+      string(name: 'rosdistro_job', defaultValue: env.JOB_NAME)
       string(name: 'release_track', defaultValue: 'hotdog')
       string(name: 'release_label', defaultValue: 'build-per-package')
       string(name: 'num_to_keep', defaultValue: '10')
