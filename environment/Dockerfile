@@ -31,7 +31,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   fakeroot \
   dpkg-dev \
   debhelper \
-  devscripts
+  devscripts \
+  cmake
 
 RUN pip3 install -U colcon-common-extensions --break-system-packages
 
