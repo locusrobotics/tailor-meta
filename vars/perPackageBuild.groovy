@@ -136,12 +136,14 @@ def call(Map args) {
       stage('Clone tailor-meta') {
         agent any
         steps {
-          git branch: 'build-per-package', credentialsId: 'tailor_github_keypass', url: 'https://github.com/locusrobotics/tailor-meta.git'
-                    // Replace 'main' with your desired branch
-                    // Replace 'your-credentials-id' with the ID of your configured credentials
-                    // Replace the URL with your repository's URL
-          stash(name: 'tailor-meta', includes: 'tailor-meta/**')
+          dir('tailor-meta') {
+            git branch: 'build-per-package', credentialsId: 'tailor_github_keypass', url: 'https://github.com/locusrobotics/tailor-meta.git'
+                      // Replace 'main' with your desired branch
+                      // Replace 'your-credentials-id' with the ID of your configured credentials
+                      // Replace the URL with your repository's URL
           }
+          stash(name: 'tailor-meta', includes: 'tailor-meta/**')
+        }
       }
 
       stage("Build repos") {
