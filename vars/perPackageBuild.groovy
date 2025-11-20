@@ -238,7 +238,7 @@ def call(Map args) {
                 }
 
                 sh "sudo rosdep init"
-                sh "echo 'yaml file:///etc/ros/rosdep/rosdep.yaml' > /etc/ros/rosdep/sources.list.d/10-tailor.list"
+                sh "sudo echo 'yaml file:///etc/ros/rosdep/rosdep.yaml' > /etc/ros/rosdep/sources.list.d/10-tailor.list"
                 sh "rosdep update"
 
                 // Pull down distribution sources
