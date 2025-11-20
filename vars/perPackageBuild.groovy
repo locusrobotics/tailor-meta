@@ -1,28 +1,29 @@
 #!/usr/bin/env groovy
-def deploy = false
 
-def docker_credentials = 'ecr:us-east-1:tailor_aws'
-
-def recipes_yaml = 'rosdistro/config/recipes.yaml'
-def upstream_yaml = 'rosdistro/config/upstream.yaml'
-def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
-def workspace_dir = 'workspace'
-
-def distributions = []
-def recipes = [:]
-
-def recipes_dir = workspace_dir + '/recipes'
-def src_dir = workspace_dir + '/src'
-def debian_dir = workspace_dir + '/debian'
-
-def srcStash = { release -> release + '-src' }
-def parentImage = { release, docker_registry -> docker_registry - "https://" + ':tailor-distro-' + release + '-parent-' + env.BRANCH_NAME }
-def bundleImage = { release, os_version, docker_registry -> docker_registry - "https://" + ':tailor-distro-' + release + '-bundle-' + os_version + '-' + env.BRANCH_NAME }
-def debianStash = { recipe -> recipe + "-debian"}
-def packageStash = { recipe -> recipe + "-packages"}
-def recipeStash = { recipe -> recipe + "-recipes"}
 
 def call(Map args) {
+  def deploy = false
+
+  def docker_credentials = 'ecr:us-east-1:tailor_aws'
+
+  def recipes_yaml = 'rosdistro/config/recipes.yaml'
+  def upstream_yaml = 'rosdistro/config/upstream.yaml'
+  def rosdistro_index = 'rosdistro/rosdistro/index.yaml'
+  def workspace_dir = 'workspace'
+
+  def distributions = []
+  def recipes = [:]
+
+  def recipes_dir = workspace_dir + '/recipes'
+  def src_dir = workspace_dir + '/src'
+  def debian_dir = workspace_dir + '/debian'
+
+  def srcStash = { release -> release + '-src' }
+  def parentImage = { release, docker_registry -> docker_registry - "https://" + ':tailor-distro-' + release + '-parent-' + env.BRANCH_NAME }
+  def bundleImage = { release, os_version, docker_registry -> docker_registry - "https://" + ':tailor-distro-' + release + '-bundle-' + os_version + '-' + env.BRANCH_NAME }
+  def debianStash = { recipe -> recipe + "-debian"}
+  def packageStash = { recipe -> recipe + "-packages"}
+  def recipeStash = { recipe -> recipe + "-recipes"}
   String tailor_distro = args['versions'].get('tailor_distro')
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
