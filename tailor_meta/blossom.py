@@ -455,6 +455,8 @@ def main():
         with open(job_yaml, "w") as f:
             yaml.safe_dump(jenkins_yaml, f)
 
+        print(f"Wrote {job_yaml}")
+
     elif args.action == "test":
         graph = Graph.from_yaml(args.graph)
         recipe = find_recipe_from_graph(graph, args.recipe)
