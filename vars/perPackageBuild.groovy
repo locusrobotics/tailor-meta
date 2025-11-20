@@ -211,6 +211,30 @@ def call(Map args) {
         agent any
         steps {
           script {
+
+            // Define the helper function
+            def generateJobsFromYaml = { String yamlPath ->
+                def config = readYaml file: yamlPath
+
+                def dslScript = config.packages.collect { pkg ->
+                    def downstreamJobs = pkg.dependencies.collect { dep ->
+                        "publishers { downstream('${dep}', 'SUCCESS') }"
+                    }.join('\n')
+
+                    """
+                    job('${pkg.name}') {
+                        description('Build job for ${pkg.name}')
+                        steps {
+                            shell("Would build ${pkg.name}!!!!")
+                        }
+                        ${downstreamJobs}
+                    }
+                    """
+                }.join('\n')
+
+                jobDsl scriptText: dslScript, sandbox: false
+            }
+
             def parent_image = docker.image(parentImage(params.release_label, params.docker_registry))
             docker.withRegistry(params.docker_registry, docker_credentials) {
               parent_image.pull()
@@ -219,7 +243,6 @@ def call(Map args) {
             parent_image.inside() {
               unstash(name: 'rosdistro')
               withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
-                library("tailor-meta@$tailor_meta")
                 unstash(name: 'rosdistro')
                 // Generate recipe configuration files
                 def recipe_yaml = sh(
