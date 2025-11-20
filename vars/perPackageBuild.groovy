@@ -109,6 +109,7 @@ def call(Map args) {
               dir('rosdistro') {
                 checkout(scm)
               }
+              stash('rosdistro')
 
               // TODO(pbovbel) validate rosdistro and config here
 
@@ -156,6 +157,7 @@ def call(Map args) {
             //}
             //stash(name: 'source', includes: 'tailor-meta/**')
             unstash(name: 'tailor-meta')
+            unstash(name: 'rosdistro')
             def parent_image_label = parentImage(params.release_label, params.docker_registry)
             def parent_image = docker.image(parent_image_label)
             withEnv(['DOCKER_BUILDKIT=1']) {
