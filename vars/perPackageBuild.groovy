@@ -253,8 +253,8 @@ def call(Map args) {
                   stash(name: srcStash(params.release_label), includes: "$src_dir/")
                 }
 
-                sh "DEBIAN_FRONTEND=noninteractive rosdep install --from-paths $src_dir/ros1 --ignore-src -r -y"
-                sh "DEBIAN_FRONTEND=noninteractive rosdep install --from-paths $src_dir/ros2 --ignore-src -r -y"
+                //sh "DEBIAN_FRONTEND=noninteractive rosdep install --from-paths $src_dir/ros1 --ignore-src -r -y"
+                //sh "DEBIAN_FRONTEND=noninteractive rosdep install --from-paths $src_dir/ros2 --ignore-src -r -y"
 
                 //recipes.each { recipe_label, recipe_path ->
                 //  sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
@@ -264,7 +264,24 @@ def call(Map args) {
                 sh "blossom graph --workspace $workspace_dir --recipe $recipes_dir"
                 //stash(name: )
 
-                sh "blossom test --workspace $workspace_dir --recipe $recipes_dir --graph $workspace_dir/graphs/ubuntu-jammy-ros1-graph.yaml"
+                sh "blossom build --workspace $workspace_dir --recipe $recipes_dir --graph $workspace_dir/graphs/ubuntu-jammy-ros1-graph.yaml"
+
+                def config = readYaml file: '${workspace_dir}/jobs/ubuntu-jammy-ros1.yaml'
+                    jobDsl scriptText: """
+                        ${config.packages.collect { pkg ->
+                            """
+                            job('${pkg.name}') {
+                                description('Build job for ${pkg.name}')
+                                steps {
+                                    sh "Would build ${pkg.name}!!!!"
+                                }
+                                ${pkg.dependencies.collect { dep ->
+                                    "publishers { downstream('${dep}', 'SUCCESS') }"
+                                }.join('\\n')}
+                            }
+                            """
+                        }.join('\\n')}
+                    """
               }
                 //def repositories_yaml = sh(
                 //  script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +

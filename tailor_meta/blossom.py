@@ -310,7 +310,7 @@ class Graph:
 @dataclass
 class JenkinsJob:
     name: str
-    path: Path
+    path: str
     depends: List[str]
 
 @dataclass
@@ -337,7 +337,7 @@ class DebianGenerator:
 
             job = JenkinsJob(
                 deb_name,
-                Path(pkg.path),
+                pkg.path,
                 depends
             )
 
@@ -356,11 +356,9 @@ class DebianGenerator:
         env.filters["union"] = lambda left, right: list(set().union(left, right))
 
         for template_name in env.list_templates():
-            if (
-                not template_name.endswith(TEMPLATE_SUFFIX)
-                or "Dockerfile" in template_name
-            ):
+            if not template_name.endswith(TEMPLATE_SUFFIX):
                 continue
+
             template_path = Path(debian_templates.__file__).parent / template_name
             output_path = (
                 workspace / Path("src") / Path(self.graph.distribution) / package.path / Path("debian") / template_name[: -len(TEMPLATE_SUFFIX)]
@@ -385,6 +383,7 @@ class DebianGenerator:
                 cxx_flags=self.recipe.cxx_flags,
                 cxx_standard=self.recipe.cxx_standard,
                 python_version="3",
+                os_name=self.graph.os_name,
             )
 
             template = env.get_template(template_name)
@@ -442,8 +441,19 @@ def main():
         generator = DebianGenerator(recipe, graph)
         jobs = generator.generate(args.workspace)
 
-        for job in jobs:
-            print(job)
+        jenkins_yaml = {
+            "packages": [asdict(j) for j in jobs]
+        }
+
+
+
+        job_path = args.workspace / Path("jobs")
+        job_yaml = job_path / Path(f"{graph.os_name}-{graph.os_version}-{graph.distribution}.yaml")
+
+        job_path.mkdir(exist_ok=True)
+
+        with open(job_yaml, "w") as f:
+            yaml.safe_dump(jenkins_yaml, f)
 
     elif args.action == "test":
         graph = Graph.from_yaml(args.graph)
