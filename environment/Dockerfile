@@ -32,7 +32,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   dpkg-dev \
   debhelper \
   devscripts \
-  cmake
+  cmake \
+  ccache
 
 RUN pip3 install -U colcon-common-extensions --break-system-packages
 
