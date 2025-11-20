@@ -29,7 +29,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   git \
   python3-apt \
   fakeroot \
-  dpkg-dev
+  dpkg-dev \
+  debhelper \
+  devscripts
 
 
 # Inject the rosdep definitions from source
