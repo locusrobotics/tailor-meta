@@ -1,13 +1,11 @@
 
-def call(String yamlPath) {
-    // Read the YAML file
+return { String yamlPath ->
     def config = readYaml file: yamlPath
 
     if (!config?.packages) {
         error "No packages found in ${yamlPath}"
     }
 
-    // Build the Job DSL script dynamically
     def dslScript = config.packages.collect { pkg ->
         def downstreamJobs = pkg.dependencies.collect { dep ->
             "publishers { downstream('${dep}', 'SUCCESS') }"
@@ -24,6 +22,5 @@ def call(String yamlPath) {
         """
     }.join('\n')
 
-    // Execute Job DSL
     jobDsl scriptText: dslScript, sandbox: false
 }
