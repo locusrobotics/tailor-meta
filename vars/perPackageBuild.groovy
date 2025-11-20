@@ -237,6 +237,9 @@ def call(Map args) {
                   stash(name: recipeStash(recipe_label), includes: recipe_path)
                 }
 
+                sh "rosdep init"
+                sh "rosdep update"
+
                 // Pull down distribution sources
                 withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                   sh "pull_distro_repositories --src-dir $src_dir --github-key $GITHUB_TOKEN " +
@@ -247,14 +250,6 @@ def call(Map args) {
                 //recipes.each { recipe_label, recipe_path ->
                 //  sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
                 //}
-                //sh "sudo rosdep init"
-                //sh "rosdep update"
-
-                sh "rosdep init"
-
-                //sh "rosdep resolve google-mock"
-                sh "rosdep update"
-                //sh "rosdep resolve google-mock"
 
                 //sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
                 sh "blossom graph --workspace $workspace_dir --recipe $recipes_dir"
