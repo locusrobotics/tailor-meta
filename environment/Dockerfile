@@ -27,15 +27,13 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   python3-wheel \
   build-essential \
   git \
-  python3-apt \
-  python3-rosdep
+  python3-apt
 
 # Inject the rosdep definitions from source
 COPY rosdistro/rosdep/rosdep.yaml /etc/ros/rosdep/rosdep.yaml
-RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]] ; then rosdep init ; fi && \
-     echo "yaml file:///etc/ros/rosdep/rosdep.yaml" > /etc/ros/rosdep/sources.list.d/10-tailor.list
 
 COPY tailor-meta tailor-meta
+COPY rosdistro rosdistro
 RUN pip3 install -e tailor-meta --break-system-packages
 
 # Rename default ubuntu user to tailor

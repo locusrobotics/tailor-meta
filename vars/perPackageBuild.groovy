@@ -246,9 +246,12 @@ def call(Map args) {
                 //  sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
                 //}
                 //sh "sudo rosdep init"
-                sh "rosdep update"
-                //sh "rosdep resolve google-mock"
                 //sh "rosdep update"
+
+                sh "if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]] ; then rosdep init ; fi && echo 'yaml file:///etc/ros/rosdep/rosdep.yaml' > /etc/ros/rosdep/sources.list.d/10-tailor.list"
+
+                //sh "rosdep resolve google-mock"
+                sh "rosdep update"
                 //sh "rosdep resolve google-mock"
 
                 //sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
