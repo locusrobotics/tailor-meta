@@ -219,6 +219,8 @@ def call(Map args) {
               unstash(name: 'rosdistro')
               unstash(name: 'tailor-meta')
               def generateJobsFromYaml = load("tailor-meta/vars/generateJobsFromYaml.groovy")
+
+              generateJobsFromYaml("tests")
               withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
                 unstash(name: 'rosdistro')
                 // Generate recipe configuration files
