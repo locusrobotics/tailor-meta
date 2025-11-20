@@ -31,9 +31,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   fakeroot \
   dpkg-dev \
   debhelper \
-  devscripts \
-  python3-colcon-common-extensions
+  devscripts
 
+RUN pip3 install -U colcon-common-extensions
 
 # Inject the rosdep definitions from source
 COPY rosdistro/rosdep/rosdep.yaml /etc/ros/rosdep/rosdep.yaml
