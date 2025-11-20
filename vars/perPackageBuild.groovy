@@ -253,7 +253,8 @@ def call(Map args) {
                   stash(name: srcStash(params.release_label), includes: "$src_dir/")
                 }
 
-                sh "rosdep install --from-paths $src_dir --ignore-src -r -y"
+                sh "rosdep install --from-paths $src_dir/ros1 --ignore-src -r -y"
+                sh "rosdep install --from-paths $src_dir/ros2 --ignore-src -r -y"
 
                 //recipes.each { recipe_label, recipe_path ->
                 //  sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
