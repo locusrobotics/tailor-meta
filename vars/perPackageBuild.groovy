@@ -158,7 +158,7 @@ def call(Map args) {
             //      "--build-arg APT_REFRESH_KEY=${params.apt_refresh_key} .")
             //  }
             //  parent_image.inside() {
-            sh('pip3 install -e tailor-meta --break-system-packages')
+            sh('pip3 install -e tailor-meta')
                 //withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                 //  sh "pull_distro_repositories --src-dir $src_dir --github-key $GITHUB_TOKEN " +
                 //    "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean"
