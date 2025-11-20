@@ -136,10 +136,11 @@ def call(Map args) {
         agent any
         steps {
           script {
-            dir('tailor-meta') {
-              checkout(scm)
-            }
-            stash(name: 'source', includes: 'tailor-meta/**')
+            //dir('tailor-meta') {
+            //  checkout(scm)
+            //}
+            //stash(name: 'source', includes: 'tailor-meta/**')
+            unstash(name: 'source')
             def parent_image_label = parentImage(params.release_label, params.docker_registry)
             def parent_image = docker.image(parent_image_label)
             withEnv(['DOCKER_BUILDKIT=1']) {
