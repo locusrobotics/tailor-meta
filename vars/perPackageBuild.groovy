@@ -138,27 +138,27 @@ def call(Map args) {
             dir('tailor-meta') {
               checkout(scm)
             }
-            stash(name: 'source', includes: 'tailor-meta/**')
-            def parent_image_label = parentImage(params.release_label, params.docker_registry)
-            def parent_image = docker.image(parent_image_label)
-            withEnv(['DOCKER_BUILDKIT=1']) {
-              try {
-                docker.withRegistry(params.docker_registry, docker_credentials) { parent_image.pull() }
-              } catch (all) {
-                echo("Unable to pull ${parent_image_label} as a build cache")
-              }
-
-              withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
-                parent_image = docker.build(parent_image_label,
-                  "${params.invalidate_cache ? '--no-cache ' : ''}" +
-                  "-f tailor-meta/environment/Dockerfile --cache-from ${parent_image_label} " +
-                  "--build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID " +
-                  "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY " +
-                  "--build-arg BUILDKIT_INLINE_CACHE=1 " +
-                  "--build-arg APT_REFRESH_KEY=${params.apt_refresh_key} .")
-              }
-              parent_image.inside() {
-                sh('pip3 install -e tailor-meta --break-system-packages')
+            //stash(name: 'source', includes: 'tailor-meta/**')
+            //def parent_image_label = parentImage(params.release_label, params.docker_registry)
+            //def parent_image = docker.image(parent_image_label)
+            //withEnv(['DOCKER_BUILDKIT=1']) {
+            //  try {
+            //    docker.withRegistry(params.docker_registry, docker_credentials) { parent_image.pull() }
+            //  } catch (all) {
+            //    echo("Unable to pull ${parent_image_label} as a build cache")
+            //  }
+//
+            //  withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+            //    parent_image = docker.build(parent_image_label,
+            //      "${params.invalidate_cache ? '--no-cache ' : ''}" +
+            //      "-f tailor-meta/environment/Dockerfile --cache-from ${parent_image_label} " +
+            //      "--build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID " +
+            //      "--build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY " +
+            //      "--build-arg BUILDKIT_INLINE_CACHE=1 " +
+            //      "--build-arg APT_REFRESH_KEY=${params.apt_refresh_key} .")
+            //  }
+            //  parent_image.inside() {
+            sh('pip3 install -e tailor-meta --break-system-packages')
                 //withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                 //  sh "pull_distro_repositories --src-dir $src_dir --github-key $GITHUB_TOKEN " +
                 //    "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean"
@@ -168,19 +168,19 @@ def call(Map args) {
                 //  script: "create_recipes --recipes $recipes_yaml --recipes-dir $recipes_dir " +
                 //        "--release-track $params.release_track --release-label $params.release_label --debian-version $params.timestamp"
                 //)
-              }
+              //}
 
 
-              docker.withRegistry(params.docker_registry, docker_credentials) {
-                parent_image.push()
-              }
+              //docker.withRegistry(params.docker_registry, docker_credentials) {
+              //  parent_image.push()
+              //}
             }
           }
         }
         post {
           cleanup {
             library("tailor-meta@${params.tailor_meta}")
-            cleanDocker()
+            //cleanDocker()
             deleteDir()
           }
         }
