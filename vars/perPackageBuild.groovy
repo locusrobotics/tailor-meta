@@ -237,7 +237,7 @@ def call(Map args) {
                   stash(name: recipeStash(recipe_label), includes: recipe_path)
                 }
 
-                sh "rosdep init"
+                sh "sudo rosdep init"
                 sh "rosdep update"
 
                 // Pull down distribution sources
