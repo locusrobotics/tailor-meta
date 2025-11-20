@@ -24,6 +24,8 @@ def call(Map args) {
   def debianStash = { recipe -> recipe + "-debian"}
   def packageStash = { recipe -> recipe + "-packages"}
   def recipeStash = { recipe -> recipe + "-recipes"}
+  def timestamp = new Date().format('yyyyMMdd.HHmmss')
+
   String tailor_distro = args['versions'].get('tailor_distro')
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
@@ -37,7 +39,7 @@ def call(Map args) {
       string(name: 'release_label', defaultValue: 'build-per-package')
       string(name: 'num_to_keep', defaultValue: '10')
       string(name: 'days_to_keep', defaultValue: '10')
-      string(name: 'timestamp')
+      string(name: 'timestamp', defaultValue: timestamp)
       string(name: 'python_version', defaultValue: '3')
       string(name: 'tailor_meta')
       string(name: 'docker_registry', defaultValue: 'https://084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-tailor')
