@@ -19,7 +19,7 @@ def call(Map args) {
   def debian_dir = workspace_dir + '/debian'
 
   def srcStash = { release -> release + '-src' }
-  def parentImage = { release, docker_registry -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME }
+  def parentImage = { release, docker_registry -> docker_registry - "https://" + ':tailor-meta-' + release + '-parent-' + env.BRANCH_NAME.replaceFirst("feature/", "feature-") }
   //def bundleImage = { release, os_version, docker_registry -> docker_registry - "https://" + ':tailor-meta-' + release + '-bundle-' + os_version + '-' + env.BRANCH_NAME }
   def debianStash = { recipe -> recipe + "-debian"}
   def packageStash = { recipe -> recipe + "-packages"}
