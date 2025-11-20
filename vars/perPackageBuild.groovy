@@ -280,7 +280,7 @@ def call(Map args) {
                                 }.join('\\n')}
                             }
                             """
-                        }.join('\\n')}
+                        }.join('\\n'), sandbox: false}
                     """
               }
                 //def repositories_yaml = sh(
