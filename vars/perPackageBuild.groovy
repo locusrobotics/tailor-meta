@@ -250,7 +250,7 @@ def call(Map args) {
                 //sh "sudo rosdep init"
                 //sh "rosdep update"
 
-                sh "if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]] ; then rosdep init ; fi && echo 'yaml file:///etc/ros/rosdep/rosdep.yaml' > /etc/ros/rosdep/sources.list.d/10-tailor.list"
+                sh "rosdep init"
 
                 //sh "rosdep resolve google-mock"
                 sh "rosdep update"
