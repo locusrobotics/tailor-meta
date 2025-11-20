@@ -176,7 +176,6 @@ def call(Map args) {
               //}
             }
           }
-        }
         post {
           cleanup {
             library("tailor-meta@${params.tailor_meta}")
