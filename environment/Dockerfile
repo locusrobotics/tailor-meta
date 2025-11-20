@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   debhelper \
   devscripts
 
-RUN pip3 install -U colcon-common-extensions
+RUN pip3 install -U colcon-common-extensions --break-system-packages
 
 # Inject the rosdep definitions from source
 COPY rosdistro/rosdep/rosdep.yaml /etc/ros/rosdep/rosdep.yaml
