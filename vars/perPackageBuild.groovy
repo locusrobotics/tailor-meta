@@ -219,6 +219,7 @@ def call(Map args) {
             parent_image.inside() {
               unstash(name: 'rosdistro')
               withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
+                library("tailor-meta@$tailor_meta")
                 unstash(name: 'rosdistro')
                 // Generate recipe configuration files
                 def recipe_yaml = sh(
