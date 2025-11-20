@@ -39,7 +39,7 @@ def call(Map args) {
       string(name: 'timestamp')
       string(name: 'python_version', defaultValue: '3')
       string(name: 'tailor_meta')
-      string(name: 'docker_registry', defaultValue: 'https://878879728913.dkr.ecr.us-east-1.amazonaws.com/locus-tailor')
+      string(name: 'docker_registry', defaultValue: 'https://084758475884.dkr.ecr.us-east-1.amazonaws.com/locus-tailor')
       string(name: 'apt_repo')
       string(name: 'retries', defaultValue: '3')
       booleanParam(name: 'deploy', defaultValue: false)
