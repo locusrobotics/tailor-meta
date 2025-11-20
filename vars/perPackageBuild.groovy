@@ -87,7 +87,7 @@ def call(Map args) {
               sh('env')
               library("tailor-meta@$tailor_meta")
 
-              stash(name: 'tailor-meta', includes: 'tailor-meta/**')
+              //stash(name: 'tailor-meta', includes: 'tailor-meta/**')
               //cancelPreviousBuilds()
 
               //echo "Build Type: ${getBuildType()}, Track:${getBuildTrack()}, Label: ${getBuildLabel()}"
@@ -133,16 +133,26 @@ def call(Map args) {
             }
           }
         }
+      stage('Clone tailor-meta') {
+        agent any
+        steps {
+          git branch: 'build-per-package', credentialsId: 'tailor_github_keypass', url: 'https://github.com/locusrobotics/tailor-meta.git'
+                    // Replace 'main' with your desired branch
+                    // Replace 'your-credentials-id' with the ID of your configured credentials
+                    // Replace the URL with your repository's URL
+          }
+      }
 
       stage("Build repos") {
         agent any
         steps {
           script {
+
             //dir('tailor-meta') {
             //  checkout(scm)
             //}
             //stash(name: 'source', includes: 'tailor-meta/**')
-            unstash(name: 'tailor-meta')
+            //unstash(name: 'tailor-meta')
             def parent_image_label = parentImage(params.release_label, params.docker_registry)
             def parent_image = docker.image(parent_image_label)
             withEnv(['DOCKER_BUILDKIT=1']) {
