@@ -109,8 +109,8 @@ def call(Map args) {
 
               // TODO(pbovbel) validate rosdistro and config here
 
-              common_config = readYaml(file: recipes_yaml)['common']
-              archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
+              //common_config = readYaml(file: recipes_yaml)['common']
+              //archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
               //if (getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]) {
               //  withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
               //    s3Upload(
