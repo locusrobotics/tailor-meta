@@ -245,12 +245,15 @@ def call(Map args) {
 
                 sh "rosdep update"
 
+
                 // Pull down distribution sources
                 withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                   sh "pull_distro_repositories --src-dir $src_dir --github-key $GITHUB_TOKEN " +
                     "--recipes $recipes_yaml  --rosdistro-index $rosdistro_index --clean"
                   stash(name: srcStash(params.release_label), includes: "$src_dir/")
                 }
+
+                sh "rosdep install --from-paths $src_dir --ignore-src -r -y"
 
                 //recipes.each { recipe_label, recipe_path ->
                 //  sh "ROS_PYTHON_VERSION=$params.python_version generate_bundle_templates --src-dir $src_dir --template-dir $debian_dir --recipe $recipe_path"
