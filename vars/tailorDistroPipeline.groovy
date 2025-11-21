@@ -114,16 +114,12 @@ def call(Map args) {
   }
 
   def createTailorJob = { job_name, branch ->
-      build(
+    build(
       job: "/ci/$job_name/$branch",
       quietPeriod: 5,
-      parameters: createJobParameters(),
-      wait: true,
-      propagate: false
+      parameters: createJobParameters()
     )
   }
-
-  def tailor_distro_child
 
   pipeline {
     agent none
