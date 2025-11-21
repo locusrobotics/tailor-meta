@@ -109,7 +109,7 @@ def call(Map args) {
       booleanParam(name: 'invalidate_cache', value: params.invalidate_cache),
       string(name: 'apt_refresh_key', value: weekNum),
       booleanParam(name: 'slack_notifications_enabled', value: slack_notifications_enabled),
-      string(name: 'slack_notifications_channel', value: slack_notifications_channel),
+      string(name: 'slack_notifications_channel', value: slack_notifications_channel)
     ]
   }
 
