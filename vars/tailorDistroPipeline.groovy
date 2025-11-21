@@ -15,8 +15,6 @@ def call(Map args) {
   def timestamp = new Date().format('yyyyMMdd.HHmmss')
   def recipes_yaml = 'rosdistro/config/recipes.yaml'
   def common_config = [:]
-  def slack_notifications_enabled = args.get('slack_notifications_enabled', false)
-  def slack_notifications_channel = args.get('slack_notifications_channel', '')
 
   def getBuildType = {
     if (env.TAG_NAME != null) {
@@ -107,9 +105,7 @@ def call(Map args) {
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
       booleanParam(name: 'invalidate_cache', value: params.invalidate_cache),
-      string(name: 'apt_refresh_key', value: weekNum),
-      booleanParam(name: 'slack_notifications_enabled', value: slack_notifications_enabled),
-      string(name: 'slack_notifications_channel', value: slack_notifications_channel)
+      string(name: 'apt_refresh_key', value: weekNum)
     ]
   }
 
