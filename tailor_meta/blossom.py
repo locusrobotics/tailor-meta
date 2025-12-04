@@ -192,7 +192,13 @@ class Graph:
         return list(rdeps)
 
     def get_depends(self, package: str) -> Tuple[List[str], List[str]]:
-        return self.packages[package].apt_depends, self.packages[package].source_depends
+        source_names = []
+        for source_dep in self.packages[package].source_depends:
+            dep_pkg = self.packages[source_dep]
+            deb_name = dep_pkg.debian_name(self.organization, self.release_label, self.distribution)
+            source_names.append(deb_name)
+
+        return self.packages[package].apt_depends, source_names
 
     def all_upstream_depends(self, package: str):
 
