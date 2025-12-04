@@ -201,9 +201,6 @@ class Graph:
         return self.packages[package].apt_depends, source_names
 
     def all_upstream_depends(self, package: str):
-
-
-
         return self.packages[package].apt_depends
 
     def package_needs_rebuild(self, package: GraphPackage) -> bool:
@@ -456,6 +453,7 @@ def main():
     parser.add_argument("--package-path", type=Path)
     parser.add_argument("--skip-rdeps", action='store_true')
     parser.add_argument("--ros-distro", nargs='+', type=str)
+    parser.add_argument("--source-prefix")
 
     args = parser.parse_args()
 
@@ -557,9 +555,23 @@ def main():
             #print(f"Upstream deps: {upstream}")
             #print(f"Source deps: {source}")
             install_list.extend(upstream)
-            install_list.extend(source)
+            #install_list.extend(source)
 
         print(" ".join(install_list))
+
+    elif args.action == "sources":
+        sources = []
+
+        graph = Graph.from_yaml(args.graph)
+        recipe = find_recipe_from_graph(graph, args.recipe)
+        for pkg in args.packages:
+            upstream, source_deps = graph.get_depends(pkg)
+
+            for src in source_deps:
+                sources.append(f"{args.source_prefix}-{src}")
+
+        print(" ".join(sources))
+
 
 
 if __name__ == "__main__":
