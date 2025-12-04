@@ -458,6 +458,13 @@ def main():
         for graph in graphs:
             graph.write_yaml(args.workspace / Path("graphs"))
 
+    elif args.action == "generate":
+        graph = Graph.from_yaml(args.graph)
+        recipe = find_recipe_from_graph(graph, args.recipe)
+
+        generator = DebianGenerator(recipe, graph)
+        generator.generate(args.workspace, packages=args.packages, skip_rdeps=True)
+
     elif args.action == "build":
         graph = Graph.from_yaml(args.graph)
         recipe = find_recipe_from_graph(graph, args.recipe)
