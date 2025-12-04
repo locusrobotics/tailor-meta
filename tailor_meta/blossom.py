@@ -447,6 +447,7 @@ def main():
     parser.add_argument("--recipe", type=Path)
     parser.add_argument("--graph", type=Path)
     parser.add_argument("--packages", nargs='+', type=str)
+    parser.add_argument("--package-path", type=Path)
     parser.add_argument("--skip-rdeps", action='store_true')
     parser.add_argument("--ros-distro", nargs='+', type=str)
 
@@ -461,6 +462,9 @@ def main():
     elif args.action == "generate":
         graph = Graph.from_yaml(args.graph)
         recipe = find_recipe_from_graph(graph, args.recipe)
+
+        if args.package_path:
+            graph.packages[args.packages[0]].path = args.package_path
 
         generator = DebianGenerator(recipe, graph)
         generator.generate(args.workspace, packages=args.packages, skip_rdeps=True)
