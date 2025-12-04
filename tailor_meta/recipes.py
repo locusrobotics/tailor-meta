@@ -126,7 +126,7 @@ def load_recipes(path: Path) -> List[GlobalRecipe]:
     Loads all recipes from a folder on disk.
     """
     if not path.is_dir():
-        raise Exception("{path} is not directory!")
+        raise Exception(f"{path} is not directory!")
 
     recipe_data: Dict[str, Any] = {}
     global_recipes: List[GlobalRecipe] = []

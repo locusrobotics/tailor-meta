@@ -13,11 +13,12 @@ from typing import (
     List,
     Dict,
     Any,
+    Tuple,
 )
 from catkin_pkg.topological_order import topological_order
 from catkin_pkg.package import Package
 from rosdep2.sources_list import SourcesListLoader
-from rosdep2.lookup import RosdepLookup
+from rosdep2.lookup import RosdepLookup, ResolutionError
 from rosdep2.rospkg_loader import DEFAULT_VIEW_KEY
 
 from . import debian_templates
@@ -102,7 +103,7 @@ class Graph:
                     #    raise Exception(f"Missing APT dependency {apt_pkg}")
                     apt_deps.add(apt_pkg)
 
-            except KeyError:
+            except (KeyError, ResolutionError):
                 source_deps.add(dep)
 
         pkg = GraphPackage(
@@ -134,8 +135,11 @@ class Graph:
                 if name not in self.packages[depend].reverse_depends:
                     self.packages[depend].reverse_depends.append(name)
 
-    def _recurse_depends(self, depend: str, visited=None, rdeps=False):
+    def _recurse_depends(self, depend: str, visited=None, rdeps=False, apt_depends=False):
         dep_type = "reverse_depends" if rdeps else "source_depends"
+
+        if apt_depends:
+            dep_type = "apt_depends"
 
         if visited is None:
             visited = set()
@@ -187,6 +191,15 @@ class Graph:
 
         return list(rdeps)
 
+    def get_depends(self, package: str) -> Tuple[List[str], List[str]]:
+        return self.packages[package].apt_depends, self.packages[package].source_depends
+
+    def all_upstream_depends(self, package: str):
+
+
+
+        return self.packages[package].apt_depends
+
     def package_needs_rebuild(self, package: GraphPackage) -> bool:
         # Rebuild if no candidate was found
         if not package.apt_candidate_version:
@@ -203,7 +216,7 @@ class Graph:
 
         return True
 
-    def build_list(self, root_packages: List[str]) -> Dict[str, GraphPackage]:
+    def build_list(self, root_packages: List[str], skip_rdeps: bool = False) -> Dict[str, GraphPackage]:
         """
         From an initial list of packages collect all dependent packages that
         don't already have a build candidate. If a package needs to be rebuilt
@@ -235,7 +248,8 @@ class Graph:
             if self.package_needs_rebuild(package):
                 build_list[name] = package
 
-                add_rdeps(package.name)
+                if not skip_rdeps:
+                    add_rdeps(package.name)
 
             # Iterate the entire dependency tree, including nested dependencies
             for dep in self.all_source_depends(name):
@@ -244,7 +258,8 @@ class Graph:
                 if self.package_needs_rebuild(dep_pkg):
                     build_list[dep] = self.packages[dep]
 
-                    add_rdeps(dep)
+                    if not skip_rdeps:
+                        add_rdeps(dep)
 
         return build_list
 
@@ -318,9 +333,16 @@ class DebianGenerator:
     recipe: GlobalRecipe
     graph: Graph
 
-    def generate(self, workspace: Path) -> List[JenkinsJob]:
+    def generate(self, workspace: Path, packages: List[str] = [], skip_rdeps: bool = False) -> List[JenkinsJob]:
         jobs: List[JenkinsJob] = []
-        build_list = self.graph.build_list(list(self.recipe.root_packages[self.graph.distribution]))
+
+        if packages == []:
+            packages = list(self.recipe.root_packages[self.graph.distribution])
+
+        build_list = self.graph.build_list(packages, skip_rdeps=skip_rdeps)
+
+        for pkg in sorted(build_list.keys()):
+            print(pkg)
 
         print("Generating debian templates:")
         for name, pkg in build_list.items():
@@ -424,7 +446,9 @@ def main():
     parser.add_argument("--workspace", type=Path)
     parser.add_argument("--recipe", type=Path)
     parser.add_argument("--graph", type=Path)
-    parser.add_argument("--packages", nargs='?', default=[])
+    parser.add_argument("--packages", nargs='+', type=str)
+    parser.add_argument("--skip-rdeps", action='store_true')
+    parser.add_argument("--ros-distro", nargs='+', type=str)
 
     args = parser.parse_args()
 
@@ -439,13 +463,11 @@ def main():
         recipe = find_recipe_from_graph(graph, args.recipe)
 
         generator = DebianGenerator(recipe, graph)
-        jobs = generator.generate(args.workspace)
+        jobs = generator.generate(args.workspace, packages=args.packages, skip_rdeps=args.skip_rdeps)
 
         jenkins_yaml = {
             "packages": [asdict(j) for j in jobs]
         }
-
-
 
         job_path = args.workspace / Path("jobs")
         job_yaml = job_path / Path(f"{graph.os_name}-{graph.os_version}-{graph.distribution}.yaml")
@@ -462,7 +484,7 @@ def main():
         recipe = find_recipe_from_graph(graph, args.recipe)
 
         generator = DebianGenerator(recipe, graph)
-        jobs = generator.generate(args.workspace)
+        jobs = generator.generate(args.workspace, packages=args.packages, skip_rdeps=args.skip_rdeps)
 
         for job in jobs:
             if job.depends == []:
@@ -507,6 +529,20 @@ def main():
             )
 
             done.append(current.name)
+    elif args.action == "install":
+
+        install_list = []
+
+        graph = Graph.from_yaml(args.graph)
+        recipe = find_recipe_from_graph(graph, args.recipe)
+        for pkg in args.packages:
+            upstream, source = graph.get_depends(pkg)
+            #print(f"Upstream deps: {upstream}")
+            #print(f"Source deps: {source}")
+            install_list.extend(upstream)
+            install_list.extend(source)
+
+        print(" ".join(install_list))
 
 
 if __name__ == "__main__":
