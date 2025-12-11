@@ -567,8 +567,7 @@ def main():
         for pkg in args.packages:
             upstream, source_deps = graph.get_depends(pkg)
 
-            for src in source_deps:
-                sources.append(f"{args.source_prefix}-{src}")
+            sources.extend(source_deps)
 
         print(" ".join(sources))
 
