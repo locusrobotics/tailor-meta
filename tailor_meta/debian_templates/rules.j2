@@ -43,9 +43,10 @@ override_dh_auto_install:
 			-DBUILD_TESTING=OFF \
 		--catkin-cmake-args \
 			-DCATKIN_SKIP_TESTING=1 \
-		--merge-install \
 		--catkin-skip-building-tests \
 		--event-handlers console_direct+
+
+	find $(INSTALL_DIR) -maxdepth 1 -mindepth 1 ! -name "." ! -name ".." ! -name "{{ package_name }}" -exec rm -rf {} +
 
 # TODO(pbovbel) create separate debug packages
 override_dh_strip:

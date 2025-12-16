@@ -11,6 +11,6 @@ Homepage: http://www.locusrobotics.com
 Package: {{ debian_name }}
 Architecture: amd64
 {% if run_depends is defined %}
-Depends: {{ run_depends | join(', ') }}
+Depends: {{ organization }}-{{ release_label }}-{{ distro_name }}-bootstrap {{ run_depends | join(', ') }}
 {% endif %}
 Description: FIXME

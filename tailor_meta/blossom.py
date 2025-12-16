@@ -204,6 +204,7 @@ class Graph:
         return self.packages[package].apt_depends
 
     def package_needs_rebuild(self, package: GraphPackage) -> bool:
+        return True
         # Rebuild if no candidate was found
         if not package.apt_candidate_version:
             return True
@@ -443,6 +444,43 @@ def find_recipe_from_graph(graph: Graph, recipes_dir: Path) -> GlobalRecipe:
     raise Exception("Could not find a recipe matching graph")
 
 
+def generate_boostrap_templates(graph: Graph):
+    """Create templates for debian build"""
+    env = jinja2.Environment(
+        loader=jinja2.PackageLoader("tailor_meta", "debian_bootstrap_templates"),
+        undefined=jinja2.StrictUndefined,
+        trim_blocks=True,
+    )
+    env.filters["regex_replace"] = lambda s, find, replace: re.sub(find, replace, s)
+    env.filters["union"] = lambda left, right: list(set().union(left, right))
+    for template_name in env.list_templates():
+        if not template_name.endswith(TEMPLATE_SUFFIX):
+            continue
+
+        template_path = Path(debian_templates.__file__).parent / template_name
+        output_path = (
+            Path("bootstrap") / Path("debian") / template_name[: -len(TEMPLATE_SUFFIX)]
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        context = dict(
+            distro_name=graph.distribution,
+            debian_name=f"{graph.organization}-{graph.release_label}-{graph.distribution}-bootstrap",
+            debian_version="0.0.1",
+            os_version=graph.os_version,
+            organization=graph.organization,
+            release_label=graph.release_label,
+            os_name=graph.os_name,
+        )
+
+        template = env.get_template(template_name)
+        stream = template.stream(**context)
+        print(f"Writing {output_path} ...")
+        stream.dump(str(output_path))
+
+        current_permissions = stat.S_IMODE(os.lstat(template_path).st_mode)
+        os.chmod(output_path, current_permissions)
+
 def main():
     parser = argparse.ArgumentParser("blossom")
     parser.add_argument("action")
@@ -570,6 +608,11 @@ def main():
             sources.extend(source_deps)
 
         print(" ".join(sources))
+
+    elif args.action == "bootstrap":
+        graph = Graph.from_yaml(args.graph)
+
+        generate_boostrap_templates(graph)
 
 
 
