@@ -9,7 +9,9 @@ export PYTHONPYCACHEPREFIX="$HOME/.cache/cpython/"
 export CCACHE_BASEDIR=$(CURDIR)
 
 SHELL=bash
-INSTALL_DIR=debian/tmp/opt/{{ organization }}/{{ release_label }}
+
+INSTALL_PREFIX = /opt/{{ organization }}/{{ release_label }}
+INSTALL_DIR    = $(CURDIR)/debian/tmp$(INSTALL_PREFIX)
 
 # Do this oneshot as part of override_dh_auto_install
 override_dh_auto_clean:
@@ -29,7 +31,7 @@ override_dh_auto_install:
 		--packages-select {{ package_name }} \
 		--base-paths {{ src_dir }}/{{ distro_name }} \
 		--build-base debian/tmp/build/{{ distro_name }} \
-		--install-base {{ src_dir }}/{{ distro_name }}_install \
+		--install-base $(INSTALL_DIR) \
 		--cmake-args \
 			-DCMAKE_CXX_FLAGS='{{ cxx_flags | join(' ') }}' \
 			-DCMAKE_CXX_STANDARD='{{ cxx_standard }}' \
