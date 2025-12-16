@@ -25,7 +25,6 @@ override_dh_auto_install:
 		source {{ src_dir }}/{{ distro_name }}_install/setup.bash; \
 	fi; \
 	export ROS_DISTRO_OVERRIDE={{ organization }}-{{ release_label }} && \
-	export MAKEFLAGS="-j4" && \
 	env && \
 	TERM=dumb colcon build \
 		--packages-select {{ package_name }} \
