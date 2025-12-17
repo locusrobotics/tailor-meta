@@ -303,9 +303,6 @@ class Graph:
     def __post_init__(self):
         self._apt_cache = apt.Cache()
 
-        print(self._apt_cache["catkin"])
-        print(self.os_version)
-
         sources_loader = SourcesListLoader.create_default()
         self._rosdep_lookup = RosdepLookup.create_from_rospkg(
             sources_loader=sources_loader
