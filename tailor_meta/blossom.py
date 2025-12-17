@@ -29,6 +29,12 @@ SCHEME_S3 = "s3://"
 APT_REGION = os.environ.get("LOCUS_APT_REGION", "us-east-1")
 APT_REPO = os.environ.get("LOCUS_APT_REPO", "s3://locus-tailor-artifacts")
 
+APT_MIRRORS: Dict[str, List[str]] = {
+    "jammy": [],
+    "noble": []
+}
+
+
 @dataclass
 class GraphPackage:
     name: str
@@ -302,11 +308,14 @@ class Graph:
         return graph
 
     @classmethod
-    def from_recipes(cls, recipe_dir: Path, workspace: Path) -> List[Any]:
+    def from_recipes(cls, recipe_dir: Path, workspace: Path, os_distro: str) -> List[Any]:
         recipes = load_recipes(recipe_dir)
         graphs = []
 
         for recipe in recipes:
+            if recipe.os_version != os_distro:
+                continue
+
             for distribution in recipe.distributions.keys():
                 graph = Graph(recipe.os_name, recipe.os_version, distribution, recipe.release_label)
                 print(f"Generating graph for {graph.name}")
@@ -492,11 +501,12 @@ def main():
     parser.add_argument("--skip-rdeps", action='store_true')
     parser.add_argument("--ros-distro", nargs='+', type=str)
     parser.add_argument("--source-prefix")
+    parser.add_argument("--os-distro", type=str)
 
     args = parser.parse_args()
 
     if args.action == "graph":
-        graphs = Graph.from_recipes(args.recipe, args.workspace)
+        graphs = Graph.from_recipes(args.recipe, args.workspace, args.os_distro)
 
         for graph in graphs:
             graph.write_yaml(args.workspace / Path("graphs"))
