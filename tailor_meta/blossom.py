@@ -1,5 +1,6 @@
 import argparse
 import apt
+import apt_pkg
 import jinja2
 import os
 import stat
@@ -98,7 +99,7 @@ class Graph:
                     default_installer_key="apt"
                 )
 
-                for apt_pkg in rules[1]:
+                for pkg_apt in rules[1]:
                     # TODO: Sometimes rosdep returns strange package names which
                     #       don't appear to exist.
                     #       e.g. libboost-filesystem resolves to libboost-filesystem1.74.0
@@ -107,7 +108,7 @@ class Graph:
                     #    print(rules)
                     #    print(apt_pkg)
                     #    raise Exception(f"Missing APT dependency {apt_pkg}")
-                    apt_deps.add(apt_pkg)
+                    apt_deps.add(pkg_apt)
 
             except (KeyError, ResolutionError):
                 source_deps.add(dep)
@@ -122,15 +123,41 @@ class Graph:
         )
 
         # Check if there is an APT candidate for the source package
-        try:
-            deb_name = pkg.debian_name(self.organization, self.release_label, self.distribution)
-            pkg.apt_candidate_version = self._apt_cache[deb_name].candidate.version
-        except KeyError:
-            pass
+        pkg.apt_candidate_version = self._get_apt_candidate_version(pkg)
 
         self.packages[package.name] = pkg
 
         # Calculate reverse depends afterwards
+
+    def _get_apt_candidate_version(self, package: GraphPackage) -> str | None:
+        deb_name = package.debian_name(self.organization, self.release_label, self.distribution)
+
+        try:
+            deb_pkg = self._apt_cache[deb_name]
+        except KeyError:
+            return None
+
+        versions = []
+
+        for ver in deb_pkg.versions:
+            suites = {origin.archive for origin in ver.origins if origin.archive}
+            for suite in suites:
+                if suite != self.os_version:
+                    continue
+
+                versions.append(ver)
+
+        if len(versions) == 0:
+            return None
+
+        # Use Debian version comparison to find the max
+        best = versions[0]
+        for v in versions[1:]:
+            # > 0 means v is newer than best
+            if apt_pkg.version_compare(ver.version, best.version) > 0:
+                best = v
+
+        return best.version
 
     def finalize(self):
         for name, package in self.packages.items():
@@ -275,6 +302,10 @@ class Graph:
 
     def __post_init__(self):
         self._apt_cache = apt.Cache()
+
+        print(self._apt_cache["catkin"])
+        print(self.os_version)
+
         sources_loader = SourcesListLoader.create_default()
         self._rosdep_lookup = RosdepLookup.create_from_rospkg(
             sources_loader=sources_loader
@@ -308,14 +339,11 @@ class Graph:
         return graph
 
     @classmethod
-    def from_recipes(cls, recipe_dir: Path, workspace: Path, os_distro: str) -> List[Any]:
+    def from_recipes(cls, recipe_dir: Path, workspace: Path) -> List[Any]:
         recipes = load_recipes(recipe_dir)
         graphs = []
 
         for recipe in recipes:
-            if recipe.os_version != os_distro:
-                continue
-
             for distribution in recipe.distributions.keys():
                 graph = Graph(recipe.os_name, recipe.os_version, distribution, recipe.release_label)
                 print(f"Generating graph for {graph.name}")
@@ -501,14 +529,23 @@ def main():
     parser.add_argument("--skip-rdeps", action='store_true')
     parser.add_argument("--ros-distro", nargs='+', type=str)
     parser.add_argument("--source-prefix")
-    parser.add_argument("--os-distro", type=str)
 
     args = parser.parse_args()
 
     if args.action == "graph":
-        graphs = Graph.from_recipes(args.recipe, args.workspace, args.os_distro)
+        graphs = Graph.from_recipes(args.recipe, args.workspace)
 
         for graph in graphs:
+            pkg = graph._apt_cache["locusrobotics-build-per-package-ros1-catkin"]
+            for ver in pkg.versions:
+                print(ver)
+
+                suites = {origin.archive for origin in ver.origins if origin.archive}
+                for suite in suites:
+                    print(suite)
+
+
+
             graph.write_yaml(args.workspace / Path("graphs"))
 
     elif args.action == "generate":
