@@ -60,5 +60,7 @@ override_dh_installdeb:
 	find . -name '*.pyc' -delete && \
 	dh_installdeb
 
-overide_dh_builddeb:
-	dh_builddeb -- -Zzstd --threads-max=32
+override_dh_builddeb:
+	dh_builddeb \
+		--filename=$(shell dpkg-parsechangelog -S Source)_$(shell dpkg-parsechangelog -S Version)_$(shell dpkg-architecture -qDEB_HOST_ARCH)_$(shell lsb_release -sc).deb \
+		-- -Zzstd

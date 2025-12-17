@@ -41,4 +41,6 @@ override_dh_installdeb:
 	dh_installdeb
 
 override_dh_builddeb:
-	dh_builddeb -- -Zzstd
+	dh_builddeb \
+		--filename=$(shell dpkg-parsechangelog -S Source)_$(shell dpkg-parsechangelog -S Version)_$(shell dpkg-architecture -qDEB_HOST_ARCH)_$(shell lsb_release -sc).deb \
+		-- -Zzstd
