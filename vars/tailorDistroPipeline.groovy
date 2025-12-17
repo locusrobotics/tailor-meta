@@ -104,8 +104,9 @@ def call(Map args) {
       string(name: 'python_version', value: common_config['python_version']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
-      booleanParam(name: 'invalidate_cache', value: params.invalidate_cache),
-      string(name: 'apt_refresh_key', value: weekNum)
+      booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
+      string(name: 'apt_refresh_key', value: weekNum),
+      booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache)
     ]
   }
 
@@ -122,7 +123,8 @@ def call(Map args) {
 
     parameters {
       booleanParam(name: 'force_mirror', defaultValue: false)
-      booleanParam(name: 'invalidate_cache', defaultValue: false)
+      booleanParam(name: 'invalidate_docker_cache', defaultValue: false)
+      booleanParam(name: 'invalidate_colcon_cache', defaultValue: false)
     }
 
     options {
