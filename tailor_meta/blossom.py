@@ -230,7 +230,7 @@ class Graph:
             dep_pkg = self.packages[source_dep]
             deb_name = dep_pkg.debian_name(self.organization, self.release_label, self.distribution)
 
-            if dep_pkg.apt_candidate_version != "null":
+            if dep_pkg.apt_candidate_version:
                 deb_name += f"={dep_pkg.apt_candidate_version}"
 
             source_names.append(deb_name)
@@ -246,6 +246,7 @@ class Graph:
             return True
 
         # Otherwise check if the candidates git SHA matches what we have cloned
+
         deb_name = package.debian_name(self.organization, self.release_label, self.distribution)
         sha = package.apt_candidate_version.split("+git")[-1][:7]
         if sha == package.sha:
