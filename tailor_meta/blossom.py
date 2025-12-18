@@ -81,7 +81,8 @@ class Graph:
             dep.name for dep in
             package.build_export_depends + package.buildtool_export_depends +
             package.exec_depends + package.build_depends + package.doc_depends +
-            package.exec_depends + package.buildtool_depends + package.test_depends
+            package.exec_depends + package.buildtool_depends + package.test_depends +
+            package.run_depends
             if dep.evaluate_condition(conditions) or dep.evaluated_condition
         ]
 
