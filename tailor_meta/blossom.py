@@ -536,16 +536,6 @@ def main():
         graphs = Graph.from_recipes(args.recipe, args.workspace)
 
         for graph in graphs:
-            pkg = graph._apt_cache["locusrobotics-build-per-package-ros1-catkin"]
-            for ver in pkg.versions:
-                print(ver)
-
-                suites = {origin.archive for origin in ver.origins if origin.archive}
-                for suite in suites:
-                    print(suite)
-
-
-
             graph.write_yaml(args.workspace / Path("graphs"))
 
     elif args.action == "generate":
