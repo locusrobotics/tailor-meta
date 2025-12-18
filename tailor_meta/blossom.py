@@ -241,7 +241,6 @@ class Graph:
         return self.packages[package].apt_depends
 
     def package_needs_rebuild(self, package: GraphPackage) -> bool:
-        return True
         # Rebuild if no candidate was found
         if not package.apt_candidate_version:
             return True
