@@ -119,7 +119,7 @@ class Graph:
                     continue
 
                 if dep in self.packages:
-                    warn_once(f"{dep} was found both as a rosdep and as a source "
+                    warn_once(f"Dependency {dep} was found both as a rosdep and as a source "
                                 "package! Adding as a source package only")
                     source_deps.add(dep)
                     continue
