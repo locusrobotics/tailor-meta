@@ -100,6 +100,17 @@ class Graph:
                     default_installer_key="apt"
                 )
 
+                # Special case here: We have packages which are source packages
+                # but also have entries in rosdep.yaml. One example of this is
+                # xmlrpcpp which is a ROS1 package but ros1_bridge requires it
+                # therefore it needs an entry (empty array) in rosdep.
+
+                if len(rules[1]) == 0 and dep in self.packages:
+                    print(f"Dependency {dep} has empty set of rules, but exists"
+                            " as a source package")
+                    source_deps.add(dep)
+                    continue
+
                 for pkg_apt in rules[1]:
                     # TODO: Sometimes rosdep returns strange package names which
                     #       don't appear to exist.
@@ -164,7 +175,7 @@ class Graph:
         for name, package in self.packages.items():
             for depend in package.source_depends:
                 if depend not in self.packages:
-                    raise Exception(f"Package {depend} was marked as a source dependency, but it was not found")
+                    raise Exception(f"Package {depend} was marked as a source dependency to {name}, but it was not found")
 
                 if name not in self.packages[depend].reverse_depends:
                     self.packages[depend].reverse_depends.append(name)
