@@ -7,7 +7,9 @@ import stat
 import re
 import yaml
 import subprocess
+import logging
 
+from functools import lru_cache
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import (
@@ -35,6 +37,11 @@ APT_MIRRORS: Dict[str, List[str]] = {
     "noble": []
 }
 
+logger = logging.getLogger("blossom")
+
+@lru_cache
+def warn_once(message: str):
+    logger.warning(message)
 
 @dataclass
 class GraphPackage:
@@ -106,8 +113,14 @@ class Graph:
                 # therefore it needs an entry (empty array) in rosdep.
 
                 if len(rules[1]) == 0 and dep in self.packages:
-                    print(f"Dependency {dep} has empty set of rules, but exists"
-                            " as a source package")
+                    warn_once(f"Dependency {dep} has empty set of rules, but exists"
+                                " as a source package")
+                    source_deps.add(dep)
+                    continue
+
+                if dep in self.packages:
+                    warn_once(f"{dep} was found both as a rosdep and as a source "
+                                "package! Adding as a source package only")
                     source_deps.add(dep)
                     continue
 
