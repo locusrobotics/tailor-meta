@@ -120,9 +120,7 @@ class Graph:
 
                 if dep in self.packages:
                     warn_once(f"Dependency {dep} was found both as a rosdep and as a source "
-                                "package! Adding as a source package only")
-                    source_deps.add(dep)
-                    continue
+                                "package! Adding as a system package only")
 
                 for pkg_apt in rules[1]:
                     # TODO: Sometimes rosdep returns strange package names which
