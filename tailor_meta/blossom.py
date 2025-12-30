@@ -226,12 +226,19 @@ class Graph:
             dep_pkg = self.packages[dep]
             deb_name = dep_pkg.debian_name(self.organization, self.release_label, self.distribution)
 
-            if dep not in build_list:
-                # This dependency is not being rebuilt, reuse existing package
-                deb_version = dep_pkg.apt_candidate_version
-            else:
-                # Generate a new version
-                deb_version = dep_pkg.debian_version(build_date)
+            deb_version = self._apt_cache[deb_name].candidate.version
+
+            #if dep not in build_list:
+            #    # This dependency is not being rebuilt, reuse existing package
+            #    deb_version = dep_pkg.apt_candidate_version
+            #else:
+            #    # Generate a new version
+            #    deb_version = dep_pkg.debian_version(build_date)
+            #
+            # TODO: When building single package we CANNOT generate a new version
+            #       at this point because it won't exist. We have to assume
+            #       any dependencies have already been built
+            #
 
             depends.add(f"{deb_name} (= {deb_version})")
 
