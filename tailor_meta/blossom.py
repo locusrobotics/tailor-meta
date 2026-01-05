@@ -8,6 +8,7 @@ import re
 import yaml
 import subprocess
 import logging
+import requests
 
 from functools import lru_cache
 from dataclasses import dataclass, field, asdict
@@ -36,6 +37,21 @@ APT_MIRRORS: Dict[str, List[str]] = {
     "jammy": [],
     "noble": []
 }
+
+
+NAME_RE = re.compile(
+    r"^(?P<organization>[A-Za-z0-9._-]+)-"
+    r"(?P<release_label>[A-Za-z0-9._-]+)-"
+    r"(?P<distribution>[A-Za-z0-9._-]+)-"
+    r"(?P<name_dashed>[A-Za-z0-9._-]+)$"
+)
+
+VERSION_RE = re.compile(
+    r"^(?P<version>[A-Za-z0-9._~+-]+)-"
+    r"(?P<build_date>\d{8,14})"
+    r"\+git(?P<sha>[0-9a-fA-F]{7})$"
+)
+
 
 logger = logging.getLogger("blossom")
 
@@ -76,6 +92,9 @@ class Graph:
     release_label: str
     packages: Dict[str, GraphPackage] = field(default_factory=dict)
     organization: str = "locusrobotics"
+
+    def __hash__(self):
+        return hash(self.name)
 
     def add_package(self, package: Package, path: Path, conditions: Dict[str, Any] = {}):
         if package.name in self.packages:
@@ -399,6 +418,158 @@ class Graph:
     def name(self):
         return f"{self.os_name}-{self.os_version}-{self.distribution}-graph"
 
+    def _debian_name_to_package(self, name: str) -> str | None:
+        try:
+            org_start = name.index(self.organization)
+            org_end = org_start + len(self.organization)
+            org = name[org_start:org_end]
+            if org != self.organization:
+                return None
+
+            label_start = name.index(self.release_label, org_end + 1)
+            label_end = label_start + len(self.release_label)
+            label = name[label_start:label_end]
+            if label != self.release_label:
+                return None
+
+            distro_start = name.index(self.distribution, label_end + 1)
+            distro_end = distro_start + len(self.distribution)
+            distro = name[distro_start:distro_end]
+            if distro != self.distribution:
+                return None
+        except ValueError:
+            return None
+
+        pkg_name = name[distro_end + 1:]
+
+        found = None
+
+        for pkg in self.packages.keys():
+            pkg_normalized = pkg.replace("_", "-")
+            if pkg_normalized == pkg_name:
+                found = pkg
+                break
+
+        return found
+
+
+    @lru_cache
+    def _debain_package_exists(self, name: str, version: str) -> Tuple[bool, bool]:
+        """
+        Checks that a debian package + version exists. First the name is validated
+        to ensure it matches the graphs org/release/distro. Then the version is
+        checked to ensure it exists already as a debian package.
+
+        Returns a tuple with two booleans:
+        bool[0] - The package name/version corresponds to a source package
+        bool[1] - The package name/version was found
+        """
+
+        #print(f"Checking for debian package {name} ({version})")
+
+        if name == f"{self.organization}-{self.release_label}-{self.distribution}-bootstrap":
+            return True, True
+
+        if self._debian_name_to_package(name) is None:
+            return False, False
+
+        try:
+            deb_pkg = self._apt_cache[name]
+        except KeyError:
+            #print("No debian found for {name}")
+            return True, False
+
+        for v in deb_pkg.versions:
+            if self.os_version not in [origin.archive for origin in v.origins]:
+                continue
+
+            if apt_pkg.version_compare(v.version, version) == 0:
+                return True, True
+
+        #print(f"No version {version} found for {name}")
+
+        return True, False
+
+    @lru_cache
+    def _apt_pkg_version_exists(self, name: str, version: str) -> List[Tuple[str, str]]:
+        try:
+            pkg = self._apt_cache[name]
+        except KeyError:
+            print(f"No version {version} found for {name}")
+            return []
+
+        broken = []
+
+        for v in pkg.versions:
+            if self.os_version not in [origin.archive for origin in v.origins]:
+                continue
+
+            if apt_pkg.version_compare(v.version, version) != 0:
+                continue
+
+            #print(f"{name} was found, checking dependencies")
+            broken_dep = False
+
+            depends = v.get_dependencies("Depends")
+            for depend in depends:
+                for base_depend in depend:
+                    #print(f"Checking {base_depend.name}")
+                    is_source, exists = self._debain_package_exists(base_depend.name, base_depend.version)
+                    if not is_source:
+                        continue
+                    if exists:
+                        continue
+
+                    broken_dep = True
+                    print(f"Package {name} dependency {base_depend.name} ({base_depend.version}) doesn't exist")
+                    #broken.append((base_depend.name, base_depend.version))
+
+            if broken_dep:
+                broken.append((name, version))
+
+        return broken
+
+    def delete_debian(self, deb_name: str, version: str, token: str | None):
+        pkg_name = self._debian_name_to_package(deb_name)
+
+        url = f"https://locusbots.jfrog.io/artifactory/locusrobotics-per-package/pool/{self.release_label}/{pkg_name}/{deb_name}_{version}_amd64_{self.os_version}.deb"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        if token is None:
+            print(f"[DRY-RUN] Would DELETE: {url}")
+            return
+
+        resp = requests.delete(url, headers=headers, timeout=60)
+        if resp.status_code in (200, 202, 204):
+            print(f"Deleted: {url}")
+        else:
+            print(f"Failed ({resp.status_code}): {resp.text}")
+
+
+    def cleanup(self, token: str):
+        """
+        Checks the validity of a graph. If packages were built prior but then
+        removed there could be broken dependencies. This is likely only needed
+        during development.
+        """
+        broken = []
+        for name, pkg in self.packages.items():
+            if not pkg.apt_candidate_version:
+                continue
+
+            deb_name = pkg.debian_name(self.organization, self.release_label, self.distribution)
+            broken.extend(self._apt_pkg_version_exists(deb_name, pkg.apt_candidate_version))
+
+        if len(broken) == 0:
+            return
+
+        print("Removing missing/broken packages:")
+        for name, version in broken:
+            self.delete_debian(name, version, token)
+
+        return broken
+
+
 @dataclass
 class JenkinsJob:
     name: str
@@ -560,11 +731,12 @@ def main():
     parser.add_argument("--workspace", type=Path)
     parser.add_argument("--recipe", type=Path)
     parser.add_argument("--graph", type=Path)
-    parser.add_argument("--packages", nargs='+', type=str)
+    parser.add_argument("--packages", nargs='*', type=str, default=[])
     parser.add_argument("--package-path", type=Path)
     parser.add_argument("--skip-rdeps", action='store_true')
     parser.add_argument("--ros-distro", nargs='+', type=str)
     parser.add_argument("--source-prefix")
+    parser.add_argument("--token")
 
     args = parser.parse_args()
 
@@ -656,11 +828,9 @@ def main():
 
             done.append(current.name)
     elif args.action == "install":
-
         install_list = []
 
         graph = Graph.from_yaml(args.graph)
-        recipe = find_recipe_from_graph(graph, args.recipe)
         for pkg in args.packages:
             upstream, source = graph.get_depends(pkg)
             #print(f"Upstream deps: {upstream}")
@@ -674,7 +844,6 @@ def main():
         sources = []
 
         graph = Graph.from_yaml(args.graph)
-        recipe = find_recipe_from_graph(graph, args.recipe)
         for pkg in args.packages:
             upstream, source_deps = graph.get_depends(pkg)
 
@@ -687,6 +856,29 @@ def main():
 
         generate_boostrap_templates(graph)
 
+    elif args.action == "check":
+        graphs: List[Graph] = []
+
+        print(f"Loading graph(s) from: {args.graph}")
+
+        if args.graph.is_dir():
+            for graph in args.graph.iterdir():
+                graphs.append(Graph.from_yaml(graph))
+        else:
+            graphs.append(Graph.from_yaml(args.graph))
+
+        broken = False
+
+        for graph in graphs:
+            print(f"Checking graph: {graph.name}")
+
+            if graph.cleanup(args.token) != []:
+                broken = True
+
+        if broken:
+            exit(1)
+
+        exit(0)
 
 
 if __name__ == "__main__":
