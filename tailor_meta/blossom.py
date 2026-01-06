@@ -9,7 +9,9 @@ import yaml
 import subprocess
 import logging
 import requests
+import json
 
+from collections import defaultdict
 from functools import lru_cache
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -737,6 +739,7 @@ def main():
     parser.add_argument("--ros-distro", nargs='+', type=str)
     parser.add_argument("--source-prefix")
     parser.add_argument("--token")
+    parser.add_argument("--output", type=Path)
 
     args = parser.parse_args()
 
@@ -760,22 +763,75 @@ def main():
         graph = Graph.from_yaml(args.graph)
         recipe = find_recipe_from_graph(graph, args.recipe)
 
-        generator = DebianGenerator(recipe, graph)
-        jobs = generator.generate(args.workspace, packages=args.packages, skip_rdeps=args.skip_rdeps)
 
-        jenkins_yaml = {
-            "packages": [asdict(j) for j in jobs]
-        }
+        print(recipe.root_packages)
 
-        job_path = args.workspace / Path("jobs")
-        job_yaml = job_path / Path(f"{graph.os_name}-{graph.os_version}-{graph.distribution}.yaml")
+        pkg_list = graph.build_list(recipe.root_packages["ros1"])
 
-        job_path.mkdir(exist_ok=True)
+        pkgs = {k: v for k, v in graph.packages.items() if k in pkg_list}
 
-        with open(job_yaml, "w") as f:
-            yaml.safe_dump(jenkins_yaml, f)
+        if not isinstance(pkgs, dict) or not pkgs:
+            raise ValueError("Input must contain a non-empty 'packages' dictionary")
 
-        print(f"Wrote {job_yaml}")
+        # Preserve original input order as a stable tie-breaker.
+        original_order = list(pkgs.keys())
+        order_index = {name: i for i, name in enumerate(original_order)}
+
+        # Build in-repo dependency graph: edges from dep -> pkg (dep must precede pkg)
+        names = set(pkgs.keys())
+        out_edges = defaultdict(set)   # dep -> {pkg, ...}
+        indegree = {name: 0 for name in names}
+
+        for pkg_name, meta in pkgs.items():
+            deps = meta.source_depends
+            for dep in deps:
+                if dep in names:
+                    out_edges[dep].add(pkg_name)
+                    indegree[pkg_name] += 1
+            # Ensure node exists in out_edges even if it has no outgoing edges
+            out_edges[pkg_name] |= set()
+
+        # Kahn's algorithm but grouped into layers
+        # Start with nodes that have indegree 0 (no in-repo deps), sorted by original input order.
+        zero_in = [n for n, deg in indegree.items() if deg == 0]
+        zero_in.sort(key=lambda n: order_index.get(n, float("inf")))
+
+        layers = []
+        removed = 0
+
+        while zero_in:
+            # Current layer is everything that just became ready
+            layer = zero_in
+            layers.append(layer)
+
+            # Remove this layer and update indegrees
+            next_zero = []
+            for n in layer:
+                removed += 1
+                for m in out_edges[n]:
+                    indegree[m] -= 1
+                    if indegree[m] == 0:
+                        next_zero.append(m)
+
+            # Next layer: sort by original order for determinism
+            next_zero.sort(key=lambda n: order_index.get(n, float("inf")))
+            zero_in = next_zero
+
+        if removed != len(names):
+            # Cycle detected: collect remaining nodes and a hint of cyclic edges
+            remaining = [n for n in names if indegree[n] > 0]
+            msg = (
+                "Dependency cycle detected among packages: "
+                + ", ".join(sorted(remaining, key=lambda n: order_index[n]))
+            )
+            raise RuntimeError(msg)
+
+        for layer in layers:
+            print(layer)
+
+        output: Path = args.output
+        output.write_text(json.dumps(layers))
+
 
     elif args.action == "test":
         graph = Graph.from_yaml(args.graph)
