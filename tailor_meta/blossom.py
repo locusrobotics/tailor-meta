@@ -306,7 +306,7 @@ class Graph:
         deb_name = package.debian_name(self.organization, self.release_label, self.distribution)
         sha = package.apt_candidate_version.split("+git")[-1][:7]
         if sha == package.sha:
-            print(f"{package.name} has already been built ({deb_name}={package.apt_candidate_version})")
+            #print(f"{package.name} has already been built ({deb_name}={package.apt_candidate_version})")
             return False
 
         print(f"Previously built {package.name} SHA {sha} does not match {package.sha}, need to rebuild")
@@ -758,6 +758,33 @@ def main():
 
         generator = DebianGenerator(recipe, graph)
         generator.generate(args.workspace, packages=args.packages, skip_rdeps=True)
+
+    elif args.action == "check-deps":
+        graph = Graph.from_yaml(args.graph)
+        recipe = find_recipe_from_graph(graph, args.recipe)
+
+        if args.package_path:
+            graph.packages[args.packages[0]].path = args.package_path
+
+        rebuild = False
+
+        for name in args.packages:
+            package = graph.packages[name]
+
+            print(f"Checking if {name} needs to be rebuilt")
+
+            if graph.package_needs_rebuild(package):
+                print(f"{name} has changed, rebuild needed")
+                rebuild = True
+
+            # The package itself has not changed, but a dependency might have
+            for dep in graph.all_source_depends(name):
+                dep_pkg = graph.packages[dep]
+                if graph.package_needs_rebuild(dep_pkg):
+                    print(f"{dep} has change, this requires a rebuild of {name}")
+                    rebuild = True
+
+        exit(1 if rebuild else 0)
 
     elif args.action == "build":
         graph = Graph.from_yaml(args.graph)
