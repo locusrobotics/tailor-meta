@@ -809,8 +809,6 @@ def main():
             for fut in as_completed(futures):
                 fut.result()
 
-        exit(1 if rebuild else 0)
-
     elif args.action == "build":
         graph = Graph.from_yaml(args.graph)
         recipe = find_recipe_from_graph(graph, args.recipe)
