@@ -11,6 +11,9 @@ import logging
 import requests
 import json
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
 from collections import defaultdict
 from functools import lru_cache
 from dataclasses import dataclass, field, asdict
@@ -727,6 +730,10 @@ def generate_boostrap_templates(graph: Graph):
         current_permissions = stat.S_IMODE(os.lstat(template_path).st_mode)
         os.chmod(output_path, current_permissions)
 
+def download_package(package, output_dir):
+    subprocess.run(["apt-get", "download", package], cwd=output_dir)
+
+
 def main():
     parser = argparse.ArgumentParser("blossom")
     parser.add_argument("action")
@@ -768,7 +775,9 @@ def main():
 
         rebuild = False
 
-        for name in args.packages:
+        built = set()
+
+        for name in graph.packages.keys():
             package = graph.packages[name]
 
             print(f"Checking if {name} needs to be rebuilt")
@@ -783,6 +792,22 @@ def main():
                 if graph.package_needs_rebuild(dep_pkg):
                     print(f"{dep} has change, this requires a rebuild of {name}")
                     rebuild = True
+                else:
+                    built.add(dep)
+
+        downloads = []
+
+        for pkg in built:
+            gpkg = graph.packages[pkg]
+            deb_name = gpkg.debian_name(graph.organization, graph.release_label, graph.distribution)
+            deb_version=graph._apt_cache[deb_name].candidate.version
+
+            downloads.append(f"{deb_name}={deb_version}")
+
+        with ThreadPoolExecutor(max_workers=50) as ex:
+            futures = [ex.submit(download_package, spec, args.output) for spec in downloads]
+            for fut in as_completed(futures):
+                fut.result()
 
         exit(1 if rebuild else 0)
 
@@ -793,8 +818,8 @@ def main():
 
         print(recipe.root_packages)
 
-        #pkg_list = graph.build_list(recipe.root_packages["ros1"])
-        pkg_list = graph.packages.keys()
+        pkg_list = graph.build_list(recipe.root_packages["ros1"])
+        #pkg_list = graph.packages.keys()
 
         pkgs = {k: v for k, v in graph.packages.items() if k in pkg_list}
 
