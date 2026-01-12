@@ -793,7 +793,8 @@ def main():
 
         print(recipe.root_packages)
 
-        pkg_list = graph.build_list(recipe.root_packages["ros1"])
+        #pkg_list = graph.build_list(recipe.root_packages["ros1"])
+        pkg_list = graph.packages.keys()
 
         pkgs = {k: v for k, v in graph.packages.items() if k in pkg_list}
 
