@@ -288,13 +288,12 @@ class Graph:
 
             cache_pkg_version = self._apt_cache[deb_name].candidate.version
 
-            if cache_pkg_version != dep_pkg.apt_candidate_version:
-                print("mismatch in versions")
-                print(f"Graph uses: {dep_pkg.apt_candidate_version}")
-                print(f"APT has: {cache_pkg_version}")
+            #if cache_pkg_version != dep_pkg.apt_candidate_version:
+            #    print("mismatch in versions")
+            #    print(f"Graph uses: {dep_pkg.apt_candidate_version}")
+            #    print(f"APT has: {cache_pkg_version}")
 
-            if dep_pkg.apt_candidate_version:
-                deb_name += f"={dep_pkg.apt_candidate_version}"
+            deb_name += f"={cache_pkg_version}"
 
             source_names.append(deb_name)
 
@@ -318,7 +317,7 @@ class Graph:
 
         sha = apt_version.split("+git")[-1][:7]
         if sha == package.sha:
-            print(f"{package.name} has already been built ({deb_name}={package.apt_candidate_version})")
+            #print(f"{package.name} has already been built ({deb_name}={package.apt_candidate_version})")
             return False
 
         print(f"Previously built {package.name} SHA {sha} does not match {package.sha}, need to rebuild")
