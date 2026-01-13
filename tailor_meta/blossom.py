@@ -286,6 +286,13 @@ class Graph:
             dep_pkg = self.packages[source_dep]
             deb_name = dep_pkg.debian_name(self.organization, self.release_label, self.distribution)
 
+            cache_pkg_version = self._apt_cache[deb_name].candidate.version
+
+            if cache_pkg_version != dep_pkg.apt_candidate_version:
+                print("mismatch in versions")
+                print(f"Graph uses: {dep_pkg.apt_candidate_version}")
+                print(f"APT has: {cache_pkg_version}")
+
             if dep_pkg.apt_candidate_version:
                 deb_name += f"={dep_pkg.apt_candidate_version}"
 
@@ -300,16 +307,18 @@ class Graph:
         return self.packages[package].apt_depends
 
     def package_needs_rebuild(self, package: GraphPackage) -> bool:
-        # Rebuild if no candidate was found
-        if not package.apt_candidate_version:
+        # Otherwise check if the candidates git SHA matches what we have cloned
+        deb_name = package.debian_name(self.organization, self.release_label, self.distribution)
+
+        try:
+            deb_pkg = self._apt_cache[deb_name]
+            apt_version = deb_pkg.candidate.version
+        except KeyError:
             return True
 
-        # Otherwise check if the candidates git SHA matches what we have cloned
-
-        deb_name = package.debian_name(self.organization, self.release_label, self.distribution)
-        sha = package.apt_candidate_version.split("+git")[-1][:7]
+        sha = apt_version.split("+git")[-1][:7]
         if sha == package.sha:
-            #print(f"{package.name} has already been built ({deb_name}={package.apt_candidate_version})")
+            print(f"{package.name} has already been built ({deb_name}={package.apt_candidate_version})")
             return False
 
         print(f"Previously built {package.name} SHA {sha} does not match {package.sha}, need to rebuild")
@@ -329,10 +338,11 @@ class Graph:
 
             # If this package is being rebuilt all reverse depends need to
             # also be rebuilt.
+            print(f"Adding rdeps of {name}")
             for r in rdeps:
                 if r in build_list:
                     continue
-
+                print(f"    {r}")
                 build_list[r] = self.packages[r]
 
         if root_packages == []:
@@ -350,6 +360,8 @@ class Graph:
 
                 if not skip_rdeps:
                     add_rdeps(package.name)
+            else:
+                print(f"{name} does not need to be rebuilt")
 
             # Iterate the entire dependency tree, including nested dependencies
             for dep in self.all_source_depends(name):
@@ -591,8 +603,9 @@ class DebianGenerator:
 
         if packages == []:
             packages = list(self.recipe.root_packages[self.graph.distribution])
-
-        build_list = self.graph.build_list(packages, skip_rdeps=skip_rdeps)
+            build_list = self.graph.build_list(packages, skip_rdeps=skip_rdeps)
+        else:
+            build_list = {name: self.graph.packages[name] for name in packages}
 
         for pkg in sorted(build_list.keys()):
             print(pkg)
