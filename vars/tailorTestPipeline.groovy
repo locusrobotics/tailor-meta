@@ -54,6 +54,13 @@ def call(Map args) {
         }
       }
 
+      stage("Trigger PR integration tests"){
+        agent none
+        steps{
+          build job: "ci_integration_tests/PR-integration-tests", wait: true
+        }
+      }
+
       stage("Rosdep check") {
         agent none
         steps {
