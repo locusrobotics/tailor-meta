@@ -118,6 +118,13 @@ def call(Map args) {
     )
   }
 
+  def shouldInvalidateColconCache = { job_name, branch ->
+    def exists = Jenkins.instance.getItemByFullName("ci/${job_name}/${branch}") != null
+    if (!exists) {
+      params.invalidate_colcon_cache = true
+    }
+  }
+
   pipeline {
     agent none
 
@@ -193,6 +200,7 @@ def call(Map args) {
         }
         steps {
           script {
+            shouldInvalidateColconCache('tailor-distro', tailor_distro)
             createTailorJob('tailor-distro', tailor_distro)
           }
         }
