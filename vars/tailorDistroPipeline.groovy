@@ -118,9 +118,20 @@ def call(Map args) {
     )
   }
 
+  // Invalidate colcon cache if the tailor-distro tag changes. That corresponds to either not
+  // having a pipeline created yet or to have it and this being the 2nd build number
   def shouldInvalidateColconCache = { job_name, branch ->
-    def exists = Jenkins.instance.getItemByFullName("ci/${job_name}/${branch}") != null
-    if (!exists) {
+    def job = Jenkins.instance.getItemByFullName("ci/${job_name}/${branch}") != null
+    if (!job) {
+      params.invalidate_colcon_cache = true
+      return
+    }
+    def lastBuild = job.getLastBuild()
+    if (!lastBuild){
+      params.invalidate_colcon_cache = true
+      return
+    }
+    if (lastBuild.getNumber() == 1) {
       params.invalidate_colcon_cache = true
     }
   }
