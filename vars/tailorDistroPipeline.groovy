@@ -12,6 +12,7 @@ def call(Map args) {
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
 
+  boolean invalidateColconCacheOverride = false
   def timestamp = new Date().format('yyyyMMdd.HHmmss')
   def recipes_yaml = 'rosdistro/config/recipes.yaml'
   def common_config = [:]
@@ -121,7 +122,6 @@ def call(Map args) {
 
   // Invalidate colcon cache if the tailor-distro tag changes. That corresponds to either not
   // having a pipeline created yet or to have it and this being the 2nd build number
-  boolean invalidateColconCacheOverride = false
   def shouldInvalidateColconCache = { job_name, branch ->
     def job = Jenkins.instance.getItemByFullName("ci/${job_name}/${branch}")
     if (job == null) {
