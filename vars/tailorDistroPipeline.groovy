@@ -106,7 +106,8 @@ def call(Map args) {
       booleanParam(name: 'deploy', value: true),
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
       string(name: 'apt_refresh_key', value: weekNum),
-      booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache)
+      booleanParam(name: 'invalidate_colcon_cache',
+        value: invalidateColconCacheOverride ? true : params.invalidate_colcon_cache)
     ]
   }
 
@@ -120,19 +121,20 @@ def call(Map args) {
 
   // Invalidate colcon cache if the tailor-distro tag changes. That corresponds to either not
   // having a pipeline created yet or to have it and this being the 2nd build number
+  boolean invalidateColconCacheOverride = false
   def shouldInvalidateColconCache = { job_name, branch ->
     def job = Jenkins.instance.getItemByFullName("ci/${job_name}/${branch}")
     if (job == null) {
-      params.invalidate_colcon_cache = true
+      invalidateColconCacheOverride = true
       return
     }
     def lastBuild = job.getLastBuild()
     if (lastBuild == null) {
-      params.invalidate_colcon_cache = true
+      invalidateColconCacheOverride = true
       return
     }
     if (lastBuild.getNumber() == 1) {
-      params.invalidate_colcon_cache = true
+      invalidateColconCacheOverride = true
     }
   }
 
