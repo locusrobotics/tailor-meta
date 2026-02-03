@@ -21,6 +21,12 @@ def call(Map args) {
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
   def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
 
+  boolean triggerIntegrationTests() {
+    return !currentBuild.getBuildCauses(
+      "com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause"
+    ).isEmpty()
+  }
+
   pipeline {
     agent none
 
@@ -56,6 +62,9 @@ def call(Map args) {
 
       stage("Trigger PR integration tests"){
         agent none
+        when {
+          expression { triggerIntegrationTests() }
+        }
         steps{
           build job: "ci_integration_tests/PR-integration-tests", wait: true
         }
