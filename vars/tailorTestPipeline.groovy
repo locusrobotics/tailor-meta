@@ -60,12 +60,18 @@ def call(Map args) {
           expression { currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
         }
         steps{
-          build job: "ci_integration_tests/PR-integration-tests",
-            wait: true,
-            parameters: [
-              string(name: 'tailor_meta', value: tailor_meta),
-              string(name: 'pr_urls', value: env.CHANGE_URL )
-            ]
+          script{
+            def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+            def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
+
+            build job: "ci_integration_tests/PR-integration-tests",
+              wait: true,
+              parameters: [
+                string(name: 'tailor_meta', value: tailor_meta),
+                string(name: 'pr_url', value: env.CHANGE_URL ),
+                string(name: 'trigger_comment_body', value: comment_body)
+              ]
+          }
         }
       }
 
