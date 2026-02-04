@@ -63,7 +63,8 @@ def call(Map args) {
           build job: "ci_integration_tests/PR-integration-tests",
             wait: true,
             parameters: [
-              string(name: 'tailor_meta', value: tailor_meta)
+              string(name: 'tailor_meta', value: tailor_meta),
+              string(name: 'pr_urls', value: env.CHANGE_URL )
             ]
         }
       }
