@@ -6,7 +6,7 @@ def call(String pr_num, String repo) {
         userRemoteConfigs: [[
             url: "https://github.com/locusrobotics/${repo}.git",
             credentialsId: tailor_github,
-            refspec: refspec: "+refs/pull/${pr_num}/head:refs/remotes/origin/PR-${pr_num} +refs/heads/devel:refs/remotes/origin/devel"
+            refspec: "+refs/pull/${pr_num}/head:refs/remotes/origin/PR-${pr_num} +refs/heads/devel:refs/remotes/origin/devel"
         ]],
     ])
 }
