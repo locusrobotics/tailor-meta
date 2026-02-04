@@ -60,7 +60,11 @@ def call(Map args) {
           expression { currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
         }
         steps{
-          build job: "ci_integration_tests/PR-integration-tests", wait: true
+          build job: "ci_integration_tests/PR-integration-tests",
+            wait: true,
+            parameters: [
+              string(name: 'tailor_meta', value: tailor_meta)
+            ]
         }
       }
 
