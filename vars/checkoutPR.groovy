@@ -4,7 +4,7 @@ def call(String pr_num, String repo) {
         doGenerateSubmoduleConfigurations: false,
         extensions: [[$class: 'LocalBranch'], [$class: 'RelativeTargetDirectory', relativeTargetDir: "${repo}"]],
         userRemoteConfigs: [[
-            url: "git@github.com:locusrobotics/${repo}.git",
+            url: "https://github.com/locusrobotics/${repo}.git",
             credentialsId: 'tailor_github_keypass',
             refspec: "+refs/pull/${pr_num}/head:refs/remotes/origin/PR-${pr_num} +refs/heads/devel:refs/remotes/origin/devel"
         ]],
