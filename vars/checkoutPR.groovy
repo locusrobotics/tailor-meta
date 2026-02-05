@@ -14,7 +14,7 @@ def call(Map args = [:]) {
     checkout([$class: 'GitSCM',
         branches: [[name: "refs/remotes/origin/PR-${pr.prNum}"]],
         doGenerateSubmoduleConfigurations: false,
-        extensions: [[$class: 'LocalBranch'], [$class: 'RelativeTargetDirectory', relativeTargetDir: "${pr.repo}-PR-${pr.prNum}"]],
+        extensions: [[$class: 'LocalBranch'], [$class: 'RelativeTargetDirectory', relativeTargetDir: "${args.base_dir}/${pr.repo}-PR-${pr.prNum}"]],
         userRemoteConfigs: [[
             url: "https://github.com/${pr.owner}/${pr.repo}.git",
             credentialsId: 'tailor_github_keypass',
