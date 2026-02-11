@@ -70,6 +70,7 @@ def call(Map args) {
                 string(name: 'tailor_meta', value: tailor_meta),
                 string(name: 'pr_url', value: env.CHANGE_URL ),
                 string(name: 'trigger_comment_body', value: comment_body)
+                booleanParam(name: 'build_custom_docker', value: true)
               ]
           }
         }
