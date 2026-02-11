@@ -78,6 +78,9 @@ def call(Map args) {
 
       stage("Rosdep check") {
         agent none
+        when {
+          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+        }
         steps {
           script {
             def jobs = distributions.collectEntries { distribution ->
@@ -118,6 +121,9 @@ def call(Map args) {
 
       stage("Build and test") {
         agent none
+        when {
+          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+        }
         steps {
           script {
             def jobs = distributions.collectEntries { distribution ->
