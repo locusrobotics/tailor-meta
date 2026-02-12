@@ -20,11 +20,9 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
 
         configure { job ->
             def sourceNode = job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'source'
-            def traitsNode = (sourceNode / 'traits')
-            if (traitsNode.size() == 0) {
-              traitsNode = sourceNode.appendNode('traits')
-            } else {
-              traitsNode = traitsNode[0]
+            def traitsNode = sourceNode.children().find { it instanceof groovy.util.Node && it.name() == 'traits' }
+            if (traitsNode == null) {
+               traitsNode = sourceNode.appendNode('traits')
             }
 
             // Remove existing traits
