@@ -9,18 +9,6 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
                 repoOwner(owner_name)
                 checkoutCredentialsId(credentials_id)
                 scanCredentialsId(credentials_id)
-
-                // Add branch discovery and PR discovery
-                withTraits {
-                    gitHubBranchDiscovery {
-                        // 1 = discover all branches, except branches that are PR sources
-                        strategyId(1)
-                    }
-                    gitHubPullRequestDiscovery {
-                        // 1 = build merged with target
-                        strategyId(1)
-                    }
-                }
             }
         }
         orphanedItemStrategy {
@@ -29,8 +17,33 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
                 numToKeep(10)
             }
         }
-    }
 
+        configure { job ->
+            def sourceNode = job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'source'
+            def traitsNode = (sourceNode / 'traits')
+            if (traitsNode.size() == 0) {
+              traitsNode = sourceNode.appendNode('traits')
+            } else {
+              traitsNode = traitsNode[0]
+            }
+
+            // Remove existing traits
+            traitsNode.children().removeAll { n ->
+              n.name() in [
+                'org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait',
+                'org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait'
+              ]
+            }
+
+            // Add Branch discovery, 1 = EXCLUDE_PRS
+            traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait')
+                      .appendNode('strategyId', '1')
+
+            // Add PR discovery from origin, 1 = MERGE
+            traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
+                    .appendNode('strategyId', '1')
+        }
+    }
     queue(job_name)
 }
 
