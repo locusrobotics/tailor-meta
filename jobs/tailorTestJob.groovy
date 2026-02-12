@@ -10,6 +10,17 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
                 checkoutCredentialsId(credentials_id)
                 scanCredentialsId(credentials_id)
             }
+            // Add branch discovery and PR discovery
+            traits {
+                gitHubBranchDiscovery {
+                    // 1 = discover all branches, except branches that are PR sources
+                    strategyId(1)
+                }
+                gitHubPullRequestDiscovery {
+                    // 1 = build merged with target
+                    strategyId(1)
+                }
+            }
         }
         orphanedItemStrategy {
             discardOldItems {

@@ -83,11 +83,6 @@ def call(Map args) {
         }
         steps {
           script {
-            publishChecks name: 'Rosdep check',
-            status: 'IN_PROGRESS',
-            summary: 'Checking dependencies',
-            detailsURL: env.BUILD_URL
-
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
@@ -131,10 +126,6 @@ def call(Map args) {
         }
         steps {
           script {
-            publishChecks name: 'Build and test',
-            status: 'IN_PROGRESS',
-            summary: 'Build and test',
-            detailsURL: env.BUILD_URL
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
