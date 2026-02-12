@@ -65,7 +65,7 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
 
             // Add PR comment trigger with the following regex
             def trigger = aNode.appendNode('com.adobe.jenkins.github__pr__comment__build.TriggerPRCommentBranchProperty')
-            trigger.appendNode('commentBody', '(?is)^integration_tests\b.*')
+            trigger.appendNode('commentBody', '(?is)^integration_tests\\b.*')
             trigger.appendNode('addReaction', 'true')
             trigger.appendNode('allowUntrusted', 'false')
         }
