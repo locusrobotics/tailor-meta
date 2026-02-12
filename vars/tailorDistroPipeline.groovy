@@ -212,11 +212,11 @@ def call(Map args) {
 
       stage("Sub-pipeline: process meta") {
         agent none
-        when {
-          expression {
-            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
-          }
-        }
+        // when {
+        //   expression {
+        //     getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
+        //   }
+        // }
         steps {
           script {
             createTailorJob('tailor-meta', tailor_meta)
