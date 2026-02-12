@@ -11,7 +11,7 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
                 scanCredentialsId(credentials_id)
 
                 // Add branch discovery and PR discovery
-                traits {
+                withTraits {
                     gitHubBranchDiscovery {
                         // 1 = discover all branches, except branches that are PR sources
                         strategyId(1)
