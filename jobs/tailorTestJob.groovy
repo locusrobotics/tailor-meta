@@ -29,7 +29,8 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             traitsNode.children().removeAll { n ->
               n.name() in [
                 'org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait',
-                'org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait'
+                'org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait',
+                'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait'
               ]
             }
 
@@ -40,6 +41,21 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             // Add PR discovery from origin, 1 = MERGE
             traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
                     .appendNode('strategyId', '1')
+
+            // Add branch name filtering
+            def filter = traitsNode.appendNode(
+              'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait'
+            )
+            // Branch name pattern to include (will still be discovered)
+            filter.appendNode(
+              'includes',
+              'main master devel devel-ros2 release/* PR-*'
+            )
+            // Branch name pattern to include (will not be discovered)
+            filter.appendNode(
+              'excludes',
+              ''
+            )
 
             // Add property to trigger job via PR comment
             def strategy = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy')
