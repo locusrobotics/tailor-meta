@@ -42,10 +42,22 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
                     .appendNode('strategyId', '1')
 
             // Add property to trigger via PR comment
-            def properties_list =
-                (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy' / 'properties' /
-                 'java.util.Arrays$ArrayList')
+            def strategy = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy')
+            def properties = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy' / 'properties')
 
+
+            // If properties is empty-list, convert it to real list
+            if (properties.@class == 'empty-list') {
+                strategy.remove(properties)
+                properties = strategy.appendNode('properties', [
+                    class: 'java.util.Arrays$ArrayList'
+                ])
+                properties.appendNode('a', [
+                    class: 'jenkins.branch.BranchProperty-array'
+                ])
+            }
+
+            def aNode = properties / 'a'
             // Ensure <a> exists
             def aNode = properties_list.children().find { it instanceof groovy.util.Node && it.name() == 'a' }
             if (aNode == null) {
