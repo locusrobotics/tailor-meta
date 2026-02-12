@@ -58,12 +58,6 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             }
 
             def aNode = properties / 'a'
-            // Ensure <a> exists
-            def aNode = properties_list.children().find { it instanceof groovy.util.Node && it.name() == 'a' }
-            if (aNode == null) {
-                aNode = properties_list.appendNode('a')
-            }
-
             aNode.children().removeAll { n ->
                 n instanceof groovy.util.Node &&
                 n.name() == 'com.adobe.jenkins.github__pr__comment__build.TriggerPRCommentBranchProperty'
