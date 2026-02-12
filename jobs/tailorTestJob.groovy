@@ -40,6 +40,28 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             // Add PR discovery from origin, 1 = MERGE
             traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
                     .appendNode('strategyId', '1')
+
+            // Add property to trigger via PR comment
+            def properties_list =
+                (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy' / 'properties' /
+                 'java.util.Arrays$ArrayList')
+
+            // Ensure <a> exists
+            def aNode = properties_list.children().find { it instanceof groovy.util.Node && it.name() == 'a' }
+            if (aNode == null) {
+                aNode = properties_list.appendNode('a')
+            }
+
+            aNode.children().removeAll { n ->
+                n instanceof groovy.util.Node &&
+                n.name() == 'com.adobe.jenkins.github__pr__comment__build.TriggerPRCommentBranchProperty'
+            }
+
+            // Add PR comment trigger with the following regex
+            def trigger = aNode.appendNode('com.adobe.jenkins.github__pr__comment__build.TriggerPRCommentBranchProperty')
+            trigger.appendNode('commentBody', '(?is)^integration_tests\b.*')
+            trigger.appendNode('addReaction', 'true')
+            trigger.appendNode('allowUntrusted', 'false')
         }
     }
     queue(job_name)
