@@ -33,20 +33,19 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
               ]
             }
 
-            // Add Branch discovery, 1 = EXCLUDE_PRS
+            // Add Branch discovery, 3 = all branches
             traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait')
-                      .appendNode('strategyId', '1')
+                      .appendNode('strategyId', '3')
 
             // Add PR discovery from origin, 1 = MERGE
             traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
                     .appendNode('strategyId', '1')
 
-            // Add property to trigger via PR comment
+            // Add property to trigger job via PR comment
             def strategy = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy')
             def properties = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy' / 'properties')
 
-
-            // If properties is empty-list, convert it to real list
+            // If properties is empty-list, convert it to a real list
             if (properties.@class == 'empty-list') {
                 strategy.remove(properties)
                 properties = strategy.appendNode('properties', [
