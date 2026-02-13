@@ -46,10 +46,10 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             def filter = traitsNode.appendNode(
               'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait'
             )
-            // Branch name pattern to include (will still be discovered)
+            // Branch name pattern to include (will automatically be discovered)
             filter.appendNode(
               'includes',
-              'main master devel devel-ros2 release/* PR-*'
+              'main master devel devel-ros2 release/* PR-* feature/*'
             )
             // Branch name pattern to include (will not be discovered)
             filter.appendNode(
