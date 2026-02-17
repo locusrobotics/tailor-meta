@@ -30,7 +30,8 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
               n.name() in [
                 'org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait',
                 'org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait',
-                'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait'
+                'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait',
+                'io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait'
               ]
             }
 
@@ -38,9 +39,9 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait')
                       .appendNode('strategyId', '3')
 
-            // Add PR discovery from origin, 1 = MERGE
+            // Add PR discovery from origin, 2 = PR head
             traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
-                    .appendNode('strategyId', '1')
+                    .appendNode('strategyId', '2')
 
             // Add branch name filtering
             def filter = traitsNode.appendNode(
@@ -56,6 +57,9 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
               'excludes',
               ''
             )
+            // Skip Github Branch source automatic status notifications
+            def statusChecks = traitsNode.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
+            statusChecks.appendNode('skipNotifications', 'true')
 
             // Add property to trigger job via PR comment
             def strategy = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy')

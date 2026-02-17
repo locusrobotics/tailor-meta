@@ -145,64 +145,64 @@ def call(Map args) {
         }
       }
 
-      // stage("Build and test") {
-      //   agent none
-      //   when {
-      //     expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
-      //   }
-      //   steps {
-      //     script {
-      //       def jobs = distributions.collectEntries { distribution ->
-      //         [distribution, { node {
-      //           try {
-      //             def repository_dir = sh(
-      //               script: 'echo "$JOB_NAME" | cut -d"/" -f3',
-      //               returnStdout: true
-      //             ).trim()
+      stage("Build and test") {
+        agent none
+        when {
+          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+        }
+        steps {
+          script {
+            def jobs = distributions.collectEntries { distribution ->
+              [distribution, { node {
+                try {
+                  def repository_dir = sh(
+                    script: 'echo "$JOB_NAME" | cut -d"/" -f3',
+                    returnStdout: true
+                  ).trim()
 
-      //             dir(repository_dir) {
-      //               checkout(scm)
-      //             }
-      //             def test_image = docker.image(testImage(distribution))
-      //             docker.withRegistry(docker_registry, docker_credentials) { test_image.pull() }
+                  dir(repository_dir) {
+                    checkout(scm)
+                  }
+                  def test_image = docker.image(testImage(distribution))
+                  docker.withRegistry(docker_registry, docker_credentials) { test_image.pull() }
 
-      //             def colcon_path_args = "--merge-install --base-paths ${repository_dir} --test-result-base test_results"
+                  def colcon_path_args = "--merge-install --base-paths ${repository_dir} --test-result-base test_results"
 
-      //             // TODO(pbovbel) pull from last rosdistro build artifact? or from s3?
-      //             def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-g -O3 -fext-numeric-literals -march=haswell -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DBOOST_ALLOW_DEPRECATED_HEADERS' " +
-      //                                     "-DCMAKE_CXX_STANDARD='17' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
-      //                                     "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+                  // TODO(pbovbel) pull from last rosdistro build artifact? or from s3?
+                  def colcon_build_args = "--cmake-args -DCMAKE_CXX_FLAGS='-g -O3 -fext-numeric-literals -march=haswell -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DBOOST_ALLOW_DEPRECATED_HEADERS' " +
+                                          "-DCMAKE_CXX_STANDARD='17' -DCMAKE_CXX_STANDARD_REQUIRED='ON' " +
+                                          "-DCMAKE_CXX_EXTENSIONS='ON' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
-      //             test_image.inside("-v $HOME/tailor/ccache:/ccache") {
-      //               dir(repository_dir){
-      //                 echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
-      //                 warnError('Pre-commit errors detected'){
-      //                   sh('git locus-pre-commit-all')
-      //                 }
-      //                 echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
-      //               }
+                  test_image.inside("-v $HOME/tailor/ccache:/ccache") {
+                    dir(repository_dir){
+                      echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
+                      warnError('Pre-commit errors detected'){
+                        sh('git locus-pre-commit-all')
+                      }
+                      echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
+                    }
 
-      //               echo('↓↓↓ TEST OUTPUT ↓↓↓')
-      //               sh("""#!/bin/bash
-      //                 source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
-      //                 rosdep install --from-paths ${repository_dir} --ignore-src -y &&
-      //                 colcon build $colcon_path_args $colcon_build_args &&
-      //                 colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
-      //               """)
-      //               echo('↑↑↑ TEST OUTPUT ↑↑↑')
-      //               junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
-      //             }
-      //           } finally {
-      //             library("tailor-meta@$tailor_meta")
-      //             cleanDocker()
-      //             deleteDir()
-      //           }
-      //         }}]
-      //       }
-      //       parallel(jobs)
-      //     }
-      //   }
-      // }
+                    echo('↓↓↓ TEST OUTPUT ↓↓↓')
+                    sh("""#!/bin/bash
+                      source \$BUNDLE_ROOT/$rosdistro_name/setup.bash &&
+                      rosdep install --from-paths ${repository_dir} --ignore-src -y &&
+                      colcon build $colcon_path_args $colcon_build_args &&
+                      colcon test $colcon_path_args --executor sequential --event-handlers console_direct+
+                    """)
+                    echo('↑↑↑ TEST OUTPUT ↑↑↑')
+                    junit(testResults: 'test_results/**/*.xml', allowEmptyResults: true)
+                  }
+                } finally {
+                  library("tailor-meta@$tailor_meta")
+                  cleanDocker()
+                  deleteDir()
+                }
+              }}]
+            }
+            parallel(jobs)
+          }
+        }
+      }
     }
     post{
       always{
