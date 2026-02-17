@@ -52,7 +52,7 @@ def call(Map args) {
             ])
 
             // Retrieve repository information to handle github norifications
-            def parts = gitUrl
+            def parts = env.GIT_URL
                         .replace('https://github.com/', '')
                         .replace('.git', '')
                         .split('/')
