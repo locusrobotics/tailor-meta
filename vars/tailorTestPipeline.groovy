@@ -61,17 +61,28 @@ def call(Map args) {
         }
         steps{
           script{
-            def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
-            def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
+            node {
+              def repository = checkout(scm)
+              def sha = repository.GIT_COMMIT ?: sh(
+                script: 'git rev-parse HEAD',
+                returnStdout: true
+                ).trim()
+              echo "Commit SHA: ${sha}"
 
-            build job: "ci_integration_tests/PR-integration-tests",
-              wait: true,
-              parameters: [
-                string(name: 'tailor_meta', value: tailor_meta),
-                string(name: 'pr_url', value: env.CHANGE_URL ),
-                string(name: 'trigger_comment_body', value: comment_body),
-                booleanParam(name: 'build_custom_docker', value: true)
-              ]
+              def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+              def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
+
+              build job: "ci_integration_tests/PR-integration-tests",
+                wait: false,
+                propagate: false,
+                parameters: [
+                  string(name: 'tailor_meta', value: tailor_meta),
+                  string(name: 'pr_url', value: env.CHANGE_URL ),
+                  string(name: 'trigger_comment_body', value: comment_body),
+                  booleanParam(name: 'build_custom_docker', value: true),
+                  string(name: 'sha', value: sha),
+                ]
+            }
           }
         }
       }

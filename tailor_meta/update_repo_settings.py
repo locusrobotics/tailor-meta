@@ -88,6 +88,7 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
                     required_approving_review_count=1
                 )
 
+            # Add issue_comment event to Jenkins webhook
             if deploy:
                 webhook_url_substring = "tailor"
                 new_events = ["issue_comment"]
