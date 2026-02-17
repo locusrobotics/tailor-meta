@@ -59,16 +59,20 @@ def call(Map args) {
             env.NOTIFICATION_ACCOUNT = parts[0]
             env.NOTIFICATION_REPO = parts[1]
             env.SHA = env.GIT_COMMIT
-            githubNotify(
-              credentialsId: 'tailor_github_keypass',
-              account: env.NOTIFICATION_ACCOUNT,
-              repo: env.NOTIFICATION_REPO,
-              sha: env.SHA,
-              context: 'ci/build-and-test',
-              description: 'Build and test stage running',
-              status: 'PENDING',
-              targetUrl: env.RUN_DISPLAY_URL
-            )
+
+            def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+            if (build_causes.isEmpty()) {
+              githubNotify(
+                credentialsId: 'tailor_github_keypass',
+                account: env.NOTIFICATION_ACCOUNT,
+                repo: env.NOTIFICATION_REPO,
+                sha: env.SHA,
+                context: 'ci/build-and-test',
+                description: 'Build and test stage running',
+                status: 'PENDING',
+                targetUrl: env.RUN_DISPLAY_URL
+              )
+            }
           }
         }
       }
@@ -207,38 +211,43 @@ def call(Map args) {
     post{
       always{
         script{
-          def result = currentBuild.currentResult
-          switch (result) {
-            case 'SUCCESS':
-              github_status = 'SUCCESS'
-              description = 'Build and test passed'
-              break
-            case 'FAILURE':
-              github_status = 'FAILURE'
-              description = 'Build and test failed'
-              break
-            case 'UNSTABLE':
-              github_status = 'FAILURE'
-              description = 'Build unstable (tests failed)'
-              break
-            case 'ABORTED':
-              github_status = 'ERROR'
-              description = 'Build and test aborted'
-              break
-            default:
-              github_status = 'ERROR'
-              description = "Unexpected build result: ${result}"
+          def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+          if (build_causes.isEmpty()) {
+            def result = currentBuild.currentResult
+            switch (result) {
+              case 'SUCCESS':
+                github_status = 'SUCCESS'
+                description = 'Build and test passed'
+                break
+              case 'FAILURE':
+                github_status = 'FAILURE'
+                description = 'Build and test failed'
+                break
+              case 'UNSTABLE':
+                github_status = 'FAILURE'
+                description = 'Build unstable (tests failed)'
+                break
+              case 'ABORTED':
+                github_status = 'ERROR'
+                description = 'Build and test aborted'
+                break
+              default:
+                github_status = 'ERROR'
+                description = "Unexpected build result: ${result}"
+            }
+            githubNotify(
+              credentialsId: 'tailor_github_keypass',
+              account: env.NOTIFICATION_ACCOUNT,
+              repo: env.NOTIFICATION_REPO,
+              sha: env.SHA,
+              context: 'ci/build-and-test',
+              description: description,
+              status: github_status,
+              targetUrl: env.RUN_DISPLAY_URL
+            )
+          } else {
+            echo "Skipping GitHub notification"
           }
-          githubNotify(
-            credentialsId: 'tailor_github_keypass',
-            account: env.NOTIFICATION_ACCOUNT,
-            repo: env.NOTIFICATION_REPO,
-            sha: env.SHA,
-            context: 'ci/build-and-test',
-            description: description,
-            status: github_status,
-            targetUrl: env.RUN_DISPLAY_URL
-          )
         }
       }
     }
