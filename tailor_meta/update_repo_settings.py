@@ -99,6 +99,24 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
                         release_track,
                         color="00ff00"
                     )
+            # Set custom property default-not-protected to true
+            if deploy:
+                existing_props = {
+                    p.property_name: p.value
+                    for p in gh_repo.get_custom_properties()
+                }
+
+                if "default-not-protected" in existing_props:
+                    gh_with_retry(
+                        github_client,
+                        gh_repo.update_custom_properties,
+                        {"default-not-protected": "true"},
+                    )
+                else:
+                    click.echo(
+                        f"Custom property 'default-not-protected' not defined for {gh_repo.full_name}",
+                        err=True,
+                    )
 
 
 def main():
