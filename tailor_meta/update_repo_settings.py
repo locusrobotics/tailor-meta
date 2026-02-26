@@ -99,6 +99,13 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
                         release_track,
                         color="00ff00"
                     )
+            # Set custom property default-not-protected to true
+            if deploy:
+                gh_with_retry(
+                    github_client,
+                    gh_repo.update_custom_properties,
+                    {"default-not-protected": "true"},
+                )
 
 
 def main():
