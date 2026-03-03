@@ -50,12 +50,67 @@ def call(Map args) {
               )),
               pipelineTriggers(triggers)
             ])
+
+            // Retrieve repository information to handle github norifications
+            def parts = env.GIT_URL
+                        .replace('https://github.com/', '')
+                        .replace('.git', '')
+                        .split('/')
+            env.NOTIFICATION_ACCOUNT = parts[0]
+            env.NOTIFICATION_REPO = parts[1]
+            env.SHA = env.GIT_COMMIT
+
+            def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+            if (build_causes.isEmpty()) {
+              githubNotify(
+                credentialsId: 'tailor_github_keypass',
+                account: env.NOTIFICATION_ACCOUNT,
+                repo: env.NOTIFICATION_REPO,
+                sha: env.SHA,
+                context: 'ci/build-and-test',
+                description: 'Build and test stage running',
+                status: 'PENDING',
+                targetUrl: env.RUN_DISPLAY_URL
+              )
+            }
+          }
+        }
+      }
+
+      stage("Trigger PR integration tests"){
+        agent none
+        when {
+          expression { currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+        }
+        steps{
+          script{
+            node {
+              def repository = checkout(scm)
+              def sha = repository.GIT_COMMIT
+
+              def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+              def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
+
+              build job: "ci_integration_tests/PR-integration-tests",
+                wait: false,
+                propagate: false,
+                parameters: [
+                  string(name: 'tailor_meta', value: tailor_meta),
+                  string(name: 'pr_url', value: env.CHANGE_URL ),
+                  string(name: 'trigger_comment_body', value: comment_body),
+                  booleanParam(name: 'build_custom_docker', value: true),
+                  string(name: 'sha', value: sha),
+                ]
+            }
           }
         }
       }
 
       stage("Rosdep check") {
         agent none
+        when {
+          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+        }
         steps {
           script {
             def jobs = distributions.collectEntries { distribution ->
@@ -96,6 +151,9 @@ def call(Map args) {
 
       stage("Build and test") {
         agent none
+        when {
+          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+        }
         steps {
           script {
             def jobs = distributions.collectEntries { distribution ->
@@ -146,6 +204,49 @@ def call(Map args) {
               }}]
             }
             parallel(jobs)
+          }
+        }
+      }
+    }
+    post{
+      always{
+        script{
+          def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+          if (build_causes.isEmpty()) {
+            def result = currentBuild.currentResult
+            switch (result) {
+              case 'SUCCESS':
+                github_status = 'SUCCESS'
+                description = 'Build and test passed'
+                break
+              case 'FAILURE':
+                github_status = 'FAILURE'
+                description = 'Build and test failed'
+                break
+              case 'UNSTABLE':
+                github_status = 'FAILURE'
+                description = 'Build unstable (tests failed)'
+                break
+              case 'ABORTED':
+                github_status = 'ERROR'
+                description = 'Build and test aborted'
+                break
+              default:
+                github_status = 'ERROR'
+                description = "Unexpected build result: ${result}"
+            }
+            githubNotify(
+              credentialsId: 'tailor_github_keypass',
+              account: env.NOTIFICATION_ACCOUNT,
+              repo: env.NOTIFICATION_REPO,
+              sha: env.SHA,
+              context: 'ci/build-and-test',
+              description: description,
+              status: github_status,
+              targetUrl: env.RUN_DISPLAY_URL
+            )
+          } else {
+            echo "Skipping GitHub notification"
           }
         }
       }

@@ -17,8 +17,78 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
                 numToKeep(10)
             }
         }
-    }
 
+        configure { job ->
+            def sourceNode = job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'source'
+            def traitsNode = sourceNode.children().find { it instanceof groovy.util.Node && it.name() == 'traits' }
+            if (traitsNode == null) {
+               traitsNode = sourceNode.appendNode('traits')
+            }
+
+            // Remove existing traits
+            traitsNode.children().removeAll { n ->
+              n.name() in [
+                'org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait',
+                'org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait',
+                'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait',
+                'io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait'
+              ]
+            }
+
+            // Add Branch discovery, 3 = all branches
+            traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait')
+                      .appendNode('strategyId', '3')
+
+            // Add PR discovery from origin, 2 = PR head
+            traitsNode.appendNode('org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait')
+                    .appendNode('strategyId', '2')
+
+            // Add branch name filtering
+            def filter = traitsNode.appendNode(
+              'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait'
+            )
+            // Branch name pattern to include (will automatically be discovered)
+            filter.appendNode(
+              'includes',
+              'main master devel devel-ros2 release/* PR-* feature/*'
+            )
+            // Branch name pattern to include (will not be discovered)
+            filter.appendNode(
+              'excludes',
+              ''
+            )
+            // Skip Github Branch source automatic status notifications
+            def statusChecks = traitsNode.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
+            statusChecks.appendNode('skipNotifications', 'true')
+
+            // Add property to trigger job via PR comment
+            def strategy = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy')
+            def properties = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy' / 'properties')
+
+            // If properties is empty-list, convert it to a real list
+            if (properties.@class == 'empty-list') {
+                strategy.remove(properties)
+                properties = strategy.appendNode('properties', [
+                    class: 'java.util.Arrays$ArrayList'
+                ])
+                properties.appendNode('a', [
+                    class: 'jenkins.branch.BranchProperty-array'
+                ])
+            }
+
+            def aNode = properties / 'a'
+            aNode.children().removeAll { n ->
+                n instanceof groovy.util.Node &&
+                n.name() == 'com.adobe.jenkins.github__pr__comment__build.TriggerPRCommentBranchProperty'
+            }
+
+            // Add PR comment trigger with the following regex
+            def trigger = aNode.appendNode('com.adobe.jenkins.github__pr__comment__build.TriggerPRCommentBranchProperty')
+            trigger.appendNode('commentBody', '(?is)^integration_tests\\b.*')
+            trigger.appendNode('addReaction', 'true')
+            trigger.appendNode('allowUntrusted', 'false')
+        }
+    }
     queue(job_name)
 }
 

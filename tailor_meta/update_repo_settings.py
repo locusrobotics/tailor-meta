@@ -88,6 +88,29 @@ def update_repo_settings(rosdistro_index: pathlib.Path, recipes: Mapping[str, An
                     required_approving_review_count=1
                 )
 
+            # Add issue_comment event to Jenkins webhook
+            if deploy:
+                webhook_url_substring = "tailor"
+                new_events = ["issue_comment"]
+
+                for hook in gh_repo.get_hooks():
+                    cfg = hook.config or {}
+                    url = cfg.get("url") or ""
+
+                    if webhook_url_substring not in url:
+                        continue
+
+                    gh_with_retry(
+                        github_client,
+                        hook.edit,
+                        name=hook.name,
+                        config=dict(cfg),
+                        add_events=new_events,
+                        active=True,
+                    )
+                    break
+
+
             # Create label
             if deploy:
                 try:
