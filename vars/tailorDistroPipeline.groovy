@@ -204,42 +204,42 @@ def call(Map args) {
         }
       }
 
-      // stage("Sub-pipeline: build distribution") {
-      //   agent none
-      //   when {
-      //     expression {
-      //       getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-      //     }
-      //   }
-      //   steps {
-      //     script {
-      //       shouldInvalidateColconCache('tailor-distro', tailor_distro)
-      //       createTailorJob('tailor-distro', tailor_distro)
-      //     }
-      //   }
-      // }
+      stage("Sub-pipeline: build distribution") {
+        agent none
+        when {
+          expression {
+            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+          }
+        }
+        steps {
+          script {
+            shouldInvalidateColconCache('tailor-distro', tailor_distro)
+            createTailorJob('tailor-distro', tailor_distro)
+          }
+        }
+      }
 
-      // stage("Sub-pipeline: bake images") {
-      //   agent none
-      //   when {
-      //     expression {
-      //       getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-      //     }
-      //   }
-      //   steps {
-      //     script {
-      //       createTailorJob('tailor-image', tailor_image)
-      //     }
-      //   }
-      // }
+      stage("Sub-pipeline: bake images") {
+        agent none
+        when {
+          expression {
+            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+          }
+        }
+        steps {
+          script {
+            createTailorJob('tailor-image', tailor_image)
+          }
+        }
+      }
 
       stage("Sub-pipeline: process meta") {
         agent none
-        // when {
-        //   expression {
-        //     getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
-        //   }
-        // }
+        when {
+          expression {
+            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
+          }
+        }
         steps {
           script {
             createTailorJob('tailor-meta', tailor_meta)
