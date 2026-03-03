@@ -108,16 +108,17 @@ pipeline {
           parent_image.inside() {
             unstash(name: 'rosdistro')
             withCredentials([string(credentialsId: 'tailor_github', variable: 'github_token')]) {
+              sh(
+                script: "update_repo_settings --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
+                        "--github-key $github_token ${params.deploy ? '--deploy' : ''} " +
+                        "--release-track $params.release_track"
+              )
               def repositories_yaml = sh(
                 script: "create_pipelines --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
                         "--github-key $github_token --meta-branch $env.BRANCH_NAME " +
                         "--release-track $params.release_track --release-label $params.release_label " +
                         "--rosdistro-job $params.rosdistro_job ${params.deploy ? '--deploy' : ''}",
                 returnStdout: true).trim()
-              sh(
-                script: "update_repo_settings --rosdistro-index $rosdistro_index  --recipes $recipes_yaml " +
-                        "--github-key $github_token ${params.deploy ? '--deploy' : ''} " +
-                        "--release-track $params.release_track")
               repositories = readYaml(text: repositories_yaml)
             }
           }
