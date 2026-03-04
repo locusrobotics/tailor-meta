@@ -91,7 +91,7 @@ def call(Map args) {
               def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
               def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
 
-              build job: "ci_integration_tests/PR-integration-tests",
+              build job: "ci_integration_tests/main",
                 wait: false,
                 propagate: false,
                 parameters: [
