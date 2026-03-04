@@ -50,7 +50,7 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             // Branch name pattern to include (will automatically be discovered)
             filter.appendNode(
               'includes',
-              'main master devel devel-ros2 release/* PR-* feature/*'
+              'main master devel devel-ros2 release/* PR-* feature/* *-devel *-master ros1'
             )
             // Branch name pattern to include (will not be discovered)
             filter.appendNode(
