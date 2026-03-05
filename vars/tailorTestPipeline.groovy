@@ -20,6 +20,7 @@ def call(Map args) {
 
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
   def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
+  def integration_tests_branch = 'main'
 
   pipeline {
     agent none
@@ -91,7 +92,7 @@ def call(Map args) {
               def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
               def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
 
-              build job: "ci_integration_tests/main",
+              build job: "ci_integration_tests/$integration_tests_branch",
                 wait: false,
                 propagate: false,
                 parameters: [
