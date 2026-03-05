@@ -83,29 +83,29 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 'docker_registry': common_options['docker_registry'],
             }
 
-            new_jenkinsfile = Environment(loader=BaseLoader()).from_string(JENKINSFILE_TEMPLATE).render(**context)
-            try:
-                old_jenkinsfile = gh_repo.get_contents(path="/Jenkinsfile", ref=branch)
+            # new_jenkinsfile = Environment(loader=BaseLoader()).from_string(JENKINSFILE_TEMPLATE).render(**context)
+            # try:
+            #     old_jenkinsfile = gh_repo.get_contents(path="/Jenkinsfile", ref=branch)
 
-                if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
-                    click.echo("Updating existing file...", err=True)
-                    if deploy:
-                        gh_repo.update_file(
-                            path='Jenkinsfile',
-                            message='Tailor: Updating Jenkinsfile',
-                            content=new_jenkinsfile,
-                            sha=old_jenkinsfile.sha,
-                            branch=branch)
-                else:
-                    click.echo("No change required", err=True)
-            except github.GithubException:
-                click.echo("Writing new file...", err=True)
-                if deploy:
-                    gh_repo.create_file(
-                        path='Jenkinsfile',
-                        message='Tailor: Creating Jenkinsfile',
-                        content=new_jenkinsfile,
-                        branch=branch)
+            #     if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
+            #         click.echo("Updating existing file...", err=True)
+            #         if deploy:
+            #             gh_repo.update_file(
+            #                 path='Jenkinsfile',
+            #                 message='Tailor: Updating Jenkinsfile',
+            #                 content=new_jenkinsfile,
+            #                 sha=old_jenkinsfile.sha,
+            #                 branch=branch)
+            #     else:
+            #         click.echo("No change required", err=True)
+            # except github.GithubException:
+            #     click.echo("Writing new file...", err=True)
+            #     if deploy:
+            #         gh_repo.create_file(
+            #             path='Jenkinsfile',
+            #             message='Tailor: Creating Jenkinsfile',
+            #             content=new_jenkinsfile,
+            #             branch=branch)
 
             jenkins_jobs.append({'repo_name': repo_name, 'owner_name': gh_repo.owner.login})
 
