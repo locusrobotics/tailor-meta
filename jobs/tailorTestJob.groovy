@@ -50,7 +50,7 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             // Branch name pattern to include (will automatically be discovered)
             filter.appendNode(
               'includes',
-              'main master devel devel-ros2 release/* PR-* feature/*'
+              'main master devel devel-ros2 release/* PR-* feature/* *-devel *-master ros1'
             )
             // Branch name pattern to include (will not be discovered)
             filter.appendNode(
@@ -59,7 +59,7 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             )
             // Skip Github Branch source automatic status notifications
             def statusChecks = traitsNode.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
-            statusChecks.appendNode('skipNotifications', 'true')
+            statusChecks.appendNode('skipNotifications', 'false')
 
             // Add property to trigger job via PR comment
             def strategy = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy')
