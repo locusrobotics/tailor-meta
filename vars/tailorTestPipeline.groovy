@@ -20,7 +20,7 @@ def call(Map args) {
 
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
   def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
-  def integration_tests_branch = 'persistent-status-report'
+  def integration_tests_branch = 'persistent-status-report-2'
 
   pipeline {
     agent none
