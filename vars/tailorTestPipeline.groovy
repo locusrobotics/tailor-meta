@@ -158,6 +158,10 @@ def call(Map args) {
         }
         steps {
           script {
+            if (currentBuild.result == 'ABORTED') {
+              echo "Build was cancelled, skipping Build and test stage"
+              return
+            }
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
