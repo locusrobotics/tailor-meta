@@ -73,8 +73,6 @@ def call(Map args) {
             cancelPreviousBuilds()
 
             // Only build master or release branches automatically, feature branches require SCM or manual trigger.
-            echo('source_branch: ' + source_branch)
-            echo('current branch: ' + env.BRANCH_NAME)
             if (env.BRANCH_NAME == source_branch) {
               triggers.add(upstream(upstreamProjects: "$rosdistro_job", threshold: hudson.model.Result.SUCCESS))
             }
@@ -132,7 +130,7 @@ def call(Map args) {
                         python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
                         echo "Pulling distro repositories..."
                         python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
-                          --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${CHANGE_NAME} --rosdistro-name $rosdistro_name
+                          --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${env.CHANGE_BRANCH} --rosdistro-name $rosdistro_name
 
                         rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
                       """)
