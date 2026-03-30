@@ -21,6 +21,7 @@ def call(Map args) {
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
   def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
   def integration_tests_branch = 'main'
+  def pr_comment_cause = 'com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause'
 
   pipeline {
     agent none
@@ -37,7 +38,13 @@ def call(Map args) {
             sh 'env'
             def triggers = []
             library("tailor-meta@$tailor_meta")
-            cancelPreviousBuilds()
+
+            // Cancel previous builds only if the build was not triggered by a PR comment. This avoids cancelling a
+            // build-and-test run when an integration test is triggered.
+            def build_causes = currentBuild.getBuildCauses(pr_comment_cause)
+            if (build_causes.isEmpty()) {
+              cancelPreviousBuilds()
+            }
 
             // Only build master or release branches automatically, feature branches require SCM or manual trigger.
             if (env.BRANCH_NAME == source_branch) {
@@ -61,7 +68,6 @@ def call(Map args) {
             env.NOTIFICATION_REPO = parts[1]
             env.SHA = env.GIT_COMMIT
 
-            def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
             if (build_causes.isEmpty()) {
               githubNotify(
                 credentialsId: 'tailor_github_keypass',
@@ -81,7 +87,7 @@ def call(Map args) {
       stage("Trigger PR integration tests"){
         agent none
         when {
-          expression { currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+          expression { currentBuild.getBuildCauses(pr_comment_cause) }
         }
         steps{
           script{
@@ -89,7 +95,7 @@ def call(Map args) {
               def repository = checkout(scm)
               def sha = repository.GIT_COMMIT
 
-              def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+              def comment_trigger = currentBuild.getBuildCauses(pr_comment_cause)
               def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
 
               build job: "ci_integration_tests/$integration_tests_branch",
@@ -110,7 +116,7 @@ def call(Map args) {
       stage("Rosdep check") {
         agent none
         when {
-          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+          expression { !currentBuild.getBuildCauses(pr_comment_cause) }
         }
         steps {
           script {
@@ -153,7 +159,7 @@ def call(Map args) {
       stage("Build and test") {
         agent none
         when {
-          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+          expression { !currentBuild.getBuildCauses(pr_comment_cause) }
         }
         steps {
           script {
@@ -212,7 +218,7 @@ def call(Map args) {
     post{
       always{
         script{
-          def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+          def build_causes = currentBuild.getBuildCauses(pr_comment_cause)
           if (build_causes.isEmpty()) {
             def result = currentBuild.currentResult
             switch (result) {
