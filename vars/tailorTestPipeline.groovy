@@ -156,7 +156,7 @@ def call(Map args) {
         when {
           expression {
             !currentBuild.getBuildCauses(pr_comment_cause) &&
-            currentBuild.result == null
+            currentBuild.result != 'ABORTED'
           }
         }
         steps {
