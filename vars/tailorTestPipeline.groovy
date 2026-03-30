@@ -31,59 +31,6 @@ def call(Map args) {
     }
 
     stages {
-      stage("Configure build parameters") {
-        agent { label 'master' }
-        steps {
-          script {
-            sh 'env'
-            def triggers = []
-            library("tailor-meta@$tailor_meta")
-
-            // Cancel previous builds only if the build was not triggered by a PR comment. This avoids cancelling a
-            // build-and-test run when an integration test is triggered.
-            def build_causes = currentBuild.getBuildCauses(pr_comment_cause)
-            if (build_causes.isEmpty()) {
-              cancelPreviousBuilds()
-            }
-
-            // Only build master or release branches automatically, feature branches require SCM or manual trigger.
-            if (env.BRANCH_NAME == source_branch) {
-              triggers.add(upstream(upstreamProjects: "$rosdistro_job", threshold: hudson.model.Result.SUCCESS))
-            }
-
-            properties([
-              buildDiscarder(logRotator(
-                artifactDaysToKeepStr: days_to_keep.toString(), artifactNumToKeepStr: num_to_keep.toString(),
-                daysToKeepStr: days_to_keep.toString(), numToKeepStr: num_to_keep.toString()
-              )),
-              pipelineTriggers(triggers)
-            ])
-
-            // Retrieve repository information to handle github norifications
-            def parts = env.GIT_URL
-                        .replace('https://github.com/', '')
-                        .replace('.git', '')
-                        .split('/')
-            env.NOTIFICATION_ACCOUNT = parts[0]
-            env.NOTIFICATION_REPO = parts[1]
-            env.SHA = env.GIT_COMMIT
-
-            if (build_causes.isEmpty()) {
-              githubNotify(
-                credentialsId: 'tailor_github_keypass',
-                account: env.NOTIFICATION_ACCOUNT,
-                repo: env.NOTIFICATION_REPO,
-                sha: env.SHA,
-                context: 'ci/build-and-test',
-                description: 'Build and test stage running',
-                status: 'PENDING',
-                targetUrl: env.RUN_DISPLAY_URL
-              )
-            }
-          }
-        }
-      }
-
       stage("Trigger PR integration tests"){
         agent none
         when {
@@ -109,6 +56,54 @@ def call(Map args) {
                   string(name: 'sha', value: sha),
                 ]
             }
+          }
+        }
+      }
+
+      stage("Configure build parameters") {
+        agent { label 'master' }
+        when {
+          expression { !currentBuild.getBuildCauses(pr_comment_cause) }
+        }
+        steps {
+          script {
+            sh 'env'
+            def triggers = []
+            library("tailor-meta@$tailor_meta")
+            cancelPreviousBuilds()
+
+            // Only build master or release branches automatically, feature branches require SCM or manual trigger.
+            if (env.BRANCH_NAME == source_branch) {
+              triggers.add(upstream(upstreamProjects: "$rosdistro_job", threshold: hudson.model.Result.SUCCESS))
+            }
+
+            properties([
+              buildDiscarder(logRotator(
+                artifactDaysToKeepStr: days_to_keep.toString(), artifactNumToKeepStr: num_to_keep.toString(),
+                daysToKeepStr: days_to_keep.toString(), numToKeepStr: num_to_keep.toString()
+              )),
+              pipelineTriggers(triggers)
+            ])
+
+            // Retrieve repository information to handle github norifications
+            def parts = env.GIT_URL
+                        .replace('https://github.com/', '')
+                        .replace('.git', '')
+                        .split('/')
+            env.NOTIFICATION_ACCOUNT = parts[0]
+            env.NOTIFICATION_REPO = parts[1]
+            env.SHA = env.GIT_COMMIT
+
+            githubNotify(
+              credentialsId: 'tailor_github_keypass',
+              account: env.NOTIFICATION_ACCOUNT,
+              repo: env.NOTIFICATION_REPO,
+              sha: env.SHA,
+              context: 'ci/build-and-test',
+              description: 'Build and test stage running',
+              status: 'PENDING',
+              targetUrl: env.RUN_DISPLAY_URL
+            )
           }
         }
       }
