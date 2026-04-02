@@ -155,8 +155,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            !currentBuild.getBuildCauses(pr_comment_cause) &&
-            currentBuild.result != 'ABORTED'
+            !currentBuild.getBuildCauses(pr_comment_cause)
           }
         }
         steps {
