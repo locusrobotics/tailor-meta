@@ -21,6 +21,7 @@ def call(Map args) {
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
   def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
   def integration_tests_branch = 'main'
+  def pr_comment_cause = 'com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause'
 
   pipeline {
     agent none
@@ -30,8 +31,40 @@ def call(Map args) {
     }
 
     stages {
+      stage("Trigger PR integration tests"){
+        agent none
+        when {
+          expression { currentBuild.getBuildCauses(pr_comment_cause) }
+        }
+        steps{
+          script{
+            node {
+              def repository = checkout(scm)
+              def sha = repository.GIT_COMMIT
+
+              def comment_trigger = currentBuild.getBuildCauses(pr_comment_cause)
+              def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
+
+              build job: "ci_integration_tests/$integration_tests_branch",
+                wait: false,
+                propagate: false,
+                parameters: [
+                  string(name: 'tailor_meta', value: tailor_meta),
+                  string(name: 'pr_url', value: env.CHANGE_URL ),
+                  string(name: 'trigger_comment_body', value: comment_body),
+                  booleanParam(name: 'build_custom_docker', value: true),
+                  string(name: 'sha', value: sha),
+                ]
+            }
+          }
+        }
+      }
+
       stage("Configure build parameters") {
         agent { label 'master' }
+        when {
+          expression { !currentBuild.getBuildCauses(pr_comment_cause) }
+        }
         steps {
           script {
             sh 'env'
@@ -61,48 +94,16 @@ def call(Map args) {
             env.NOTIFICATION_REPO = parts[1]
             env.SHA = env.GIT_COMMIT
 
-            def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
-            if (build_causes.isEmpty()) {
-              githubNotify(
-                credentialsId: 'tailor_github_keypass',
-                account: env.NOTIFICATION_ACCOUNT,
-                repo: env.NOTIFICATION_REPO,
-                sha: env.SHA,
-                context: 'ci/build-and-test',
-                description: 'Build and test stage running',
-                status: 'PENDING',
-                targetUrl: env.RUN_DISPLAY_URL
-              )
-            }
-          }
-        }
-      }
-
-      stage("Trigger PR integration tests"){
-        agent none
-        when {
-          expression { currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
-        }
-        steps{
-          script{
-            node {
-              def repository = checkout(scm)
-              def sha = repository.GIT_COMMIT
-
-              def comment_trigger = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
-              def comment_body = (comment_trigger && comment_trigger.size() > 0) ? (comment_trigger[0].commentBody ?: "") : ""
-
-              build job: "ci_integration_tests/$integration_tests_branch",
-                wait: false,
-                propagate: false,
-                parameters: [
-                  string(name: 'tailor_meta', value: tailor_meta),
-                  string(name: 'pr_url', value: env.CHANGE_URL ),
-                  string(name: 'trigger_comment_body', value: comment_body),
-                  booleanParam(name: 'build_custom_docker', value: true),
-                  string(name: 'sha', value: sha),
-                ]
-            }
+            githubNotify(
+              credentialsId: 'tailor_github_keypass',
+              account: env.NOTIFICATION_ACCOUNT,
+              repo: env.NOTIFICATION_REPO,
+              sha: env.SHA,
+              context: 'ci/build-and-test',
+              description: 'Build and test stage running',
+              status: 'PENDING',
+              targetUrl: env.RUN_DISPLAY_URL
+            )
           }
         }
       }
@@ -110,7 +111,7 @@ def call(Map args) {
       stage("Rosdep check") {
         agent none
         when {
-          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+          expression { !currentBuild.getBuildCauses(pr_comment_cause) }
         }
         steps {
           script {
@@ -129,7 +130,7 @@ def call(Map args) {
                         python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
                         echo "Pulling distro repositories..."
                         python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
-                          --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${BRANCH_NAME} --rosdistro-name $rosdistro_name
+                          --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${env.CHANGE_BRANCH ?: env.BRANCH_NAME} --rosdistro-name $rosdistro_name
 
                         rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
                       """)
@@ -153,7 +154,9 @@ def call(Map args) {
       stage("Build and test") {
         agent none
         when {
-          expression { !currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause") }
+          expression {
+            !currentBuild.getBuildCauses(pr_comment_cause)
+          }
         }
         steps {
           script {
@@ -212,7 +215,7 @@ def call(Map args) {
     post{
       always{
         script{
-          def build_causes = currentBuild.getBuildCauses("com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause")
+          def build_causes = currentBuild.getBuildCauses(pr_comment_cause)
           if (build_causes.isEmpty()) {
             def result = currentBuild.currentResult
             switch (result) {
