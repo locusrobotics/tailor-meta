@@ -193,11 +193,11 @@ def call(Map args) {
             getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
-        steps {
-          script {
-            createTailorJob('tailor-distro', tailor_distro)
-          }
-        }
+        // steps {
+        //   script {
+        //     createTailorJob('tailor-distro', tailor_distro)
+        //   }
+        // }
       }
 
       stage("Sub-pipeline: bake images") {
@@ -207,11 +207,11 @@ def call(Map args) {
             getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
-        steps {
-          script {
-            createTailorJob('tailor-image', tailor_image)
-          }
-        }
+        // steps {
+        //   script {
+        //     createTailorJob('tailor-image', tailor_image)
+        //   }
+        // }
       }
 
       stage("Sub-pipeline: process meta") {
