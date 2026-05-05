@@ -118,7 +118,7 @@ def call(Map args) {
     )
   }
 
-  def integration_tests_branch = 'RST-15413-remove-hardcoded-vars'
+  def integration_tests_branch = 'test-branch'
 
   pipeline {
     agent none
