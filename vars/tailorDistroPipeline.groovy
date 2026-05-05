@@ -118,7 +118,7 @@ def call(Map args) {
     )
   }
 
-  def integration_tests_branch = 'main'
+  def integration_tests_branch = 'RST-15413-remove-hardcoded-vars'
 
   pipeline {
     agent none
@@ -232,7 +232,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
+            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FEATURE]
           }
         }
         steps {
