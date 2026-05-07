@@ -118,6 +118,8 @@ def call(Map args) {
     )
   }
 
+  def integration_tests_branch = 'main'
+
   pipeline {
     agent none
 
@@ -222,6 +224,28 @@ def call(Map args) {
         steps {
           script {
             createTailorJob('tailor-meta', tailor_meta)
+          }
+        }
+      }
+
+      stage("Sub-pipeline: integration tests") {
+        agent none
+        when {
+          expression {
+            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
+          }
+        }
+        steps {
+          script {
+            node{
+              build job: "ci_integration_tests/$integration_tests_branch",
+              wait: false,
+              propagate: false,
+              parameters: [
+                string(name: 'tailor_meta', value: tailor_meta),
+                string(name: 'release_label', value: getBuildLabel()),
+              ]
+            }
           }
         }
       }
