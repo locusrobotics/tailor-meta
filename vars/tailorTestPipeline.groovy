@@ -54,7 +54,7 @@ def call(Map args) {
                   string(name: 'trigger_comment_body', value: comment_body),
                   booleanParam(name: 'build_custom_docker', value: true),
                   string(name: 'sha', value: sha),
-                  string(name: 'release_label', value: release_label),
+                  string(name: 'release_label', value: '25.2-rc'),
                 ]
             }
           }
