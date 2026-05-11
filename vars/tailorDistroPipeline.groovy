@@ -105,6 +105,7 @@ def call(Map args) {
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
+      booleanParam(name: 'per_package_build', value: true),
       string(name: 'apt_refresh_key', value: weekNum),
       booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache)
     ]
