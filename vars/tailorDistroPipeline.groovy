@@ -11,6 +11,8 @@ def call(Map args) {
   String tailor_distro = args['versions'].get('tailor_distro')
   String tailor_image = args['versions'].get('tailor_image')
   String tailor_meta = args['versions'].get('tailor_meta')
+  // Optional argument: per_package_build (default false)
+  boolean per_package_build = args.containsKey('per_package_build') ? args['per_package_build'] : false
 
   def timestamp = new Date().format('yyyyMMdd.HHmmss')
   def recipes_yaml = 'rosdistro/config/recipes.yaml'
@@ -105,6 +107,7 @@ def call(Map args) {
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
+      booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
       booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache)
     ]
