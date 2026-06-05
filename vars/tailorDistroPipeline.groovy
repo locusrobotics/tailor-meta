@@ -169,16 +169,14 @@ def call(Map args) {
 
             common_config = readYaml(file: recipes_yaml)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
-            if (getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]) {
-              withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
-                s3Upload(
-                  // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
-                  bucket: common_config['apt_repo'] - 's3://',
-                  path: getBuildLabel(),
-                  includePathPattern: 'rosdistro/**, rosdep/**, config/**',
-                  workingDir: 'rosdistro',
-                )
-              }
+            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+              s3Upload(
+                // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
+                bucket: common_config['apt_repo'] - 's3://',
+                path: getBuildLabel(),
+                includePathPattern: 'rosdistro/**, rosdep/**, config/**',
+                workingDir: 'rosdistro',
+              )
             }
           }
         }
