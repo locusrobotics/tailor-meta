@@ -89,6 +89,7 @@ def call(Map args) {
   def cal = Calendar.getInstance(TimeZone.getTimeZone('UTC'))
   cal.setTime(new Date())
   def weekNum = String.format("%d-W%02d", cal.get(Calendar.YEAR), cal.get(Calendar.WEEK_OF_YEAR))
+  def params_from_successful_distro = [:]
 
   // (pbovbel) Currently all sub-pipelines use the same parameters, even if some of them are unused.
   // This may need to change in the future.
@@ -107,6 +108,7 @@ def call(Map args) {
       booleanParam(name: 'force_mirror', value: params.force_mirror),
       booleanParam(name: 'deploy', value: true),
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
+      booleanParam(name: 'invalidate_cache', value: params.invalidate_docker_cache),
       booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
       booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache)
@@ -130,6 +132,9 @@ def call(Map args) {
       booleanParam(name: 'force_mirror', defaultValue: false)
       booleanParam(name: 'invalidate_docker_cache', defaultValue: false)
       booleanParam(name: 'invalidate_colcon_cache', defaultValue: false)
+      booleanParam(name: 'build_tailor_distro', defaultValue: true)
+      booleanParam(name: 'build_tailor_image', defaultValue: true)
+      booleanParam(name: 'build_tailor_meta', defaultValue: true)
     }
 
     options {
@@ -168,6 +173,35 @@ def call(Map args) {
             // TODO(pbovbel) validate rosdistro and config here
 
             common_config = readYaml(file: recipes_yaml)['common']
+
+            // When skipping tailor-distro, reuse parameters from the last successful distro build
+            // so downstream jobs consume the same artifact timestamp.
+            if (!params.build_tailor_distro && (params.build_tailor_image || params.build_tailor_meta)) {
+              def persisted_params_file = 'tailor-distro-successful-params.yaml'
+              withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+                s3Download(
+                  bucket: common_config['apt_repo'] - 's3://',
+                  path: "${getBuildLabel()}/pipeline-params/tailor-distro/${persisted_params_file}",
+                  file: persisted_params_file,
+                  force: true,
+                )
+              }
+
+              def persisted = readYaml(file: persisted_params_file) ?: [:]
+              params_from_successful_distro = persisted['parameters'] ?: [:]
+
+              if (!params_from_successful_distro['timestamp']) {
+                error('Missing timestamp in persisted tailor-distro parameters; cannot safely run downstream stages.')
+              }
+
+              timestamp = params_from_successful_distro['timestamp']
+              if (params_from_successful_distro['apt_refresh_key']) {
+                weekNum = params_from_successful_distro['apt_refresh_key']
+              }
+
+              echo "Reusing tailor-distro params: timestamp=${timestamp}, apt_refresh_key=${weekNum}"
+            }
+
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
             withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
               s3Upload(
@@ -191,7 +225,8 @@ def call(Map args) {
         agent none
         when {
           expression {
-            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            params.build_tailor_distro &&
+              (getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL])
           }
         }
         steps {
@@ -205,7 +240,8 @@ def call(Map args) {
         agent none
         when {
           expression {
-            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            params.build_tailor_image &&
+              (getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL])
           }
         }
         steps {
@@ -219,7 +255,8 @@ def call(Map args) {
         agent none
         when {
           expression {
-            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
+            params.build_tailor_meta &&
+              (getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE])
           }
         }
         steps {
@@ -233,7 +270,8 @@ def call(Map args) {
         agent none
         when {
           expression {
-            getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE]
+            params.build_tailor_meta &&
+              (getBuildType() in [BuildType.HOTDOG, BuildType.CANDIDATE])
           }
         }
         steps {
