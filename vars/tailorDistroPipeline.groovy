@@ -13,6 +13,8 @@ def call(Map args) {
   String tailor_meta = args['versions'].get('tailor_meta')
   // Optional argument: per_package_build (default false)
   boolean per_package_build = args.containsKey('per_package_build') ? args['per_package_build'] : false
+  // Optional argument: package naming release-label override for tailor-distro
+  String overwrite_release_label = args.containsKey('overwrite_release_label') ? (args['overwrite_release_label'] ?: '').toString() : ''
 
   def timestamp = new Date().format('yyyyMMdd.HHmmss')
   def recipes_yaml = 'rosdistro/config/recipes.yaml'
@@ -110,7 +112,7 @@ def call(Map args) {
       booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
       booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache),
-      booleanParam(name: 'overwrite_release_label', value: params.overwrite_release_label)
+      string(name: 'overwrite_release_label', value: overwrite_release_label)
     ]
   }
 
@@ -131,6 +133,7 @@ def call(Map args) {
       booleanParam(name: 'force_mirror', defaultValue: false)
       booleanParam(name: 'invalidate_docker_cache', defaultValue: false)
       booleanParam(name: 'invalidate_colcon_cache', defaultValue: false)
+      string(name: 'overwrite_release_label', defaultValue: '', description: 'Optional package naming release label override forwarded to tailor-distro.')
     }
 
     options {
