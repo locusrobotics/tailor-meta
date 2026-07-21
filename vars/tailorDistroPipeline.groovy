@@ -109,7 +109,7 @@ def call(Map args) {
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
       booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
-      booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache)
+      booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache),
       booleanParam(name: 'overwrite_release_label', value: params.overwrite_release_label)
     ]
   }
