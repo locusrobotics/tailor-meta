@@ -184,11 +184,17 @@ def call(Map args) {
 
                   test_image.inside("-v $HOME/tailor/ccache:/ccache") {
                     dir(repository_dir){
-                      echo('↓↓↓ PRE-COMMIT OUTPUT ↓↓↓')
+                      echo('↓↓↓ PRE-COMMIT (OPTIONAL) OUTPUT ↓↓↓')
                       warnError('Pre-commit errors detected'){
-                        sh('git locus-pre-commit-all')
+                        sh('"$(git config --get core.hooksPath)/pre-commit" --optional')
                       }
-                      echo('↑↑↑ PRE-COMMIT OUTPUT ↑↑↑')
+                      echo('↑↑↑ PRE-COMMIT (OPTIONAL) OUTPUT ↑↑↑')
+                    }
+
+                    dir(repository_dir){
+                      echo('↓↓↓ PRE-COMMIT (MANDATORY) OUTPUT ↓↓↓')
+                      sh('"$(git config --get core.hooksPath)/pre-commit" --mandatory')
+                      echo('↑↑↑ PRE-COMMIT (MANDATORY) OUTPUT ↑↑↑')
                     }
 
                     echo('↓↓↓ TEST OUTPUT ↓↓↓')

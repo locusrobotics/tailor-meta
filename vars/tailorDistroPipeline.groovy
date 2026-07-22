@@ -167,9 +167,32 @@ def call(Map args) {
 
             // TODO(pbovbel) validate rosdistro and config here
 
+            // --- DEBUG: workspace + checkout inspection ---
+            echo "DEBUG: NODE_NAME=${env.NODE_NAME} EXECUTOR_NUMBER=${env.EXECUTOR_NUMBER}"
+            echo "DEBUG: WORKSPACE=${env.WORKSPACE}"
+            sh 'echo "DEBUG: pwd=$(pwd)"'
+            sh 'echo "DEBUG: workspace top-level:"; ls -la .'
+            sh 'echo "DEBUG: rosdistro/ contents:"; ls -la rosdistro/ || echo "DEBUG: rosdistro/ MISSING"'
+            sh 'echo "DEBUG: s3Upload pattern matches under rosdistro/:"; ' +
+               '( cd rosdistro && ls -d rosdistro rosdep config 2>/dev/null; ' +
+               'find rosdistro rosdep config -type f 2>/dev/null ) || echo "DEBUG: no matches"'
+            // --- END DEBUG ---
+
             common_config = readYaml(file: recipes_yaml)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
+
+            // --- DEBUG: confirm upload parameters and that this block is reached ---
+            def debug_bucket = common_config['apt_repo'] - 's3://'
+            def debug_path = getBuildLabel()
+            echo "DEBUG: about to s3Upload bucket='${debug_bucket}' path='${debug_path}' " +
+                 "workingDir='rosdistro' pattern='rosdistro/**, rosdep/**, config/**'"
+            if (debug_path == null) {
+              echo "DEBUG: WARNING getBuildLabel() is null -> s3Upload path would be null"
+            }
+            // --- END DEBUG ---
+
             withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+              echo "DEBUG: entered withCredentials block, invoking s3Upload"
               s3Upload(
                 // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
                 bucket: common_config['apt_repo'] - 's3://',
@@ -177,6 +200,7 @@ def call(Map args) {
                 includePathPattern: 'rosdistro/**, rosdep/**, config/**',
                 workingDir: 'rosdistro',
               )
+              echo "DEBUG: s3Upload call returned"
             }
           }
         }
