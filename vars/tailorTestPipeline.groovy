@@ -126,7 +126,7 @@ def call(Map args) {
                     echo('↓↓↓ ROSDEP OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
-                        source \$BUNDLE_ROOT/$rosdistro_name/setup.bash
+                        source /home/locus/source_ros_workspace.bash $rosdistro_name
                         echo "Pulling rosdistro..."
                         python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
                         echo "Pulling distro repositories..."
