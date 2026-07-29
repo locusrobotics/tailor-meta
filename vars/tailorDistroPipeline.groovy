@@ -67,7 +67,7 @@ def call(Map args) {
       case BuildType.CANDIDATE:
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
-        return "30"
+        return "3"
       case BuildType.TRIVIAL:
         return "1"
     }
@@ -80,7 +80,7 @@ def call(Map args) {
         return ""
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
-        return "30"
+        return "3"
       case BuildType.TRIVIAL:
         return "1"
     }
