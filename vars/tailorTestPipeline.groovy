@@ -20,7 +20,7 @@ def call(Map args) {
 
   def testImage = { distribution -> docker_registry - "https://" + ':tailor-image-test-' + distribution + '-' + release_label }
   def dependencyImage = { distribution -> docker_registry - "https://" + ':tailor-image-dep-checker-' + distribution + '-' + release_label }
-  def integration_tests_branch = 'RST-14959-filter-tests'
+  def integration_tests_branch = 'PR-27'
   def pr_comment_cause = 'com.adobe.jenkins.github_pr_comment_build.GitHubPullRequestCommentCause'
 
   pipeline {
