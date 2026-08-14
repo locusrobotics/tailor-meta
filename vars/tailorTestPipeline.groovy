@@ -133,7 +133,8 @@ def call(Map args) {
                         python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
                           --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${env.CHANGE_BRANCH ?: env.BRANCH_NAME} --rosdistro-name $rosdistro_name
 
-                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
+                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src --dependency-types build --dependency-types buildtool \
+                          --dependency-types build_export --dependency-types buildtool_export --dependency-types exec
                       """)
                       echo('↑↑↑ ROSDEP OUTPUT ↑↑↑')
                     }
