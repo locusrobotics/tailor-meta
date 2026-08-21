@@ -126,14 +126,15 @@ def call(Map args) {
                     echo('↓↓↓ ROSDEP OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
-                        source \$BUNDLE_ROOT/$rosdistro_name/setup.bash
+                        source /home/locus/source_ros_workspace.bash $rosdistro_name
                         echo "Pulling rosdistro..."
                         python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key $GITHUB_TOKEN --clean --ref $release_track
                         echo "Pulling distro repositories..."
                         python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
                           --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${env.CHANGE_BRANCH ?: env.BRANCH_NAME} --rosdistro-name $rosdistro_name
 
-                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src
+                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src --dependency-types build --dependency-types buildtool \
+                          --dependency-types build_export --dependency-types buildtool_export --dependency-types exec
                       """)
                       echo('↑↑↑ ROSDEP OUTPUT ↑↑↑')
                     }
