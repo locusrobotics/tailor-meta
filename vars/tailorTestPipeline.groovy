@@ -126,7 +126,6 @@ def call(Map args) {
                     returnStdout: true
                   ).trim()
 
-                  // Get the repository on the $source_branch
                   dir('baseline_repo') {
                     checkout([
                       $class: 'GitSCM',
@@ -151,42 +150,27 @@ def call(Map args) {
                       """)
                     }
 
-                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: "Workspace-wide rosdep install issues ($distribution)") {
-                      echo('↓↓↓ ROSDEP INSTALL ↓↓↓')
-                      sh("""#!/bin/bash
-                        source /home/locus/source_ros_workspace.bash $rosdistro_name
-                        rosdep install --from-paths workspace/src/$rosdistro_name --ignore-src -y $dep_types
-                      """)
-                      echo('↑↑↑ ROSDEP INSTALL ↑↑↑')
-                    }
-
-                    echo("↓↓↓ ROSDEP CHECK - $repository_dir ↓↓↓")
+                    echo("↓↓↓ ROSDEP INSTALL AND CHECK - $repository_dir ($distribution) ↓↓↓")
                     sh("""#!/bin/bash
+                      set -e
                       source /home/locus/source_ros_workspace.bash $rosdistro_name
-                      # Let --ignore-src recognise source packages from the rest of the workspace
                       export ROS_PACKAGE_PATH="\$PWD/workspace/src/$rosdistro_name:\${ROS_PACKAGE_PATH:-}"
+
+                      rosdep install --from-paths workspace/src/$rosdistro_name/$repository_dir --ignore-src -y $dep_types
                       rosdep check --from-paths workspace/src/$rosdistro_name/$repository_dir --ignore-src $dep_types
-                    """)
-                    echo("↑↑↑ ROSDEP CHECK - $repository_dir ↑↑↑")
 
-                    // Only fail on unresolved keys that are caused by this PR (i.e. packages that were removed from the repository in this PR)
-                    echo('↓↓↓ ROSDEP CHECK - all (fails only on packages removed by this PR) ↓↓↓')
-                    sh("""#!/bin/bash
-                      source /home/locus/source_ros_workspace.bash $rosdistro_name
                       find baseline_repo -name package.xml -exec grep -ohP '(?<=<name>)[^<]+' {} + | sort -u > baseline_names.txt
-
-                      rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src $dep_types > workspace_rosdep.txt 2>&1
+                      rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src $dep_types > workspace_rosdep.txt 2>&1 || true
                       cat workspace_rosdep.txt
 
-                      new_errors=\$(grep -Fwf baseline_names.txt workspace_rosdep.txt || true)
-                      if [ -n "\$new_errors" ]; then
-                        echo "Unresolved rosdep errors caused by package(s) removed from $repository_dir in this PR:"
-                        echo "\$new_errors"
+                      removed_package_errors=\$(grep -Fwf baseline_names.txt workspace_rosdep.txt || true)
+                      if [ -n "\$removed_package_errors" ]; then
+                        echo "Unresolved dependencies caused by packages removed from $repository_dir:"
+                        echo "\$removed_package_errors"
                         exit 1
                       fi
-                      echo "No workspace-wide rosdep errors caused by packages removed from $repository_dir."
                     """)
-                    echo('↑↑↑ ROSDEP CHECK - all ↑↑↑')
+                    echo("↑↑↑ ROSDEP INSTALL AND CHECK - $repository_dir ($distribution) ↑↑↑")
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
