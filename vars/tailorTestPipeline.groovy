@@ -126,6 +126,16 @@ def call(Map args) {
                     returnStdout: true
                   ).trim()
 
+                  // Get the repository on the $source_branch
+                  dir('baseline_repo') {
+                    checkout([
+                      $class: 'GitSCM',
+                      branches: [[name: source_branch]],
+                      userRemoteConfigs: scm.userRemoteConfigs,
+                      extensions: [[$class: 'CloneOption', depth: 1, shallow: true, noTags: true]],
+                    ])
+                  }
+
                   def deps_image = docker.image(dependencyImage(distribution))
                   docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
 
@@ -159,14 +169,24 @@ def call(Map args) {
                     """)
                     echo("↑↑↑ ROSDEP CHECK - $repository_dir ↑↑↑")
 
-                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: "Workspace-wide rosdep issues ($distribution)") {
-                      echo('↓↓↓ ROSDEP CHECK - all ↓↓↓')
-                      sh("""#!/bin/bash
-                        source /home/locus/source_ros_workspace.bash $rosdistro_name
-                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src $dep_types
-                      """)
-                      echo('↑↑↑ ROSDEP CHECK - all ↑↑↑')
-                    }
+                    // Only fail on unresolved keys that are caused by this PR (i.e. packages that were removed from the repository in this PR)
+                    echo('↓↓↓ ROSDEP CHECK - all (fails only on packages removed by this PR) ↓↓↓')
+                    sh("""#!/bin/bash
+                      source /home/locus/source_ros_workspace.bash $rosdistro_name
+                      find baseline_repo -name package.xml -exec grep -ohP '(?<=<name>)[^<]+' {} + | sort -u > baseline_names.txt
+
+                      rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src $dep_types > workspace_rosdep.txt 2>&1
+                      cat workspace_rosdep.txt
+
+                      new_errors=\$(grep -Fwf baseline_names.txt workspace_rosdep.txt || true)
+                      if [ -n "\$new_errors" ]; then
+                        echo "Unresolved rosdep errors caused by package(s) removed from $repository_dir in this PR:"
+                        echo "\$new_errors"
+                        exit 1
+                      fi
+                      echo "No workspace-wide rosdep errors caused by packages removed from $repository_dir."
+                    """)
+                    echo('↑↑↑ ROSDEP CHECK - all ↑↑↑')
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
