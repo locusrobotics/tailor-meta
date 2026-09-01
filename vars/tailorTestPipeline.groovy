@@ -116,14 +116,30 @@ def call(Map args) {
         }
         steps {
           script {
+            def dep_types = '--dependency-types build --dependency-types buildtool --dependency-types build_export ' +
+                            '--dependency-types buildtool_export --dependency-types exec'
             def jobs = distributions.collectEntries { distribution ->
               [distribution, { node {
                 try {
+                  def repository_dir = sh(
+                    script: 'echo "$JOB_NAME" | cut -d"/" -f3',
+                    returnStdout: true
+                  ).trim()
+
+                  // Checkout the baseline repository
+                  dir('baseline_repo') {
+                    checkout([
+                      $class: 'GitSCM',
+                      branches: [[name: source_branch]],
+                      userRemoteConfigs: scm.userRemoteConfigs,
+                      extensions: [[$class: 'CloneOption', depth: 1, shallow: true, noTags: true]],
+                    ])
+                  }
+
                   def deps_image = docker.image(dependencyImage(distribution))
                   docker.withRegistry(docker_registry, docker_credentials) { deps_image.pull() }
 
                   deps_image.inside("-v $HOME/tailor/ccache:/ccache") {
-                    echo('↓↓↓ ROSDEP OUTPUT ↓↓↓')
                     withCredentials([string(credentialsId: 'tailor_github', variable: 'GITHUB_TOKEN')]) {
                       sh("""#!/bin/bash
                         source /home/locus/source_ros_workspace.bash $rosdistro_name
@@ -132,12 +148,28 @@ def call(Map args) {
                         echo "Pulling distro repositories..."
                         python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key $GITHUB_TOKEN \
                           --recipes $recipes_yaml --rosdistro-index $rosdistro_index --clean --ref ${env.CHANGE_BRANCH ?: env.BRANCH_NAME} --rosdistro-name $rosdistro_name
-
-                        rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src --dependency-types build --dependency-types buildtool \
-                          --dependency-types build_export --dependency-types buildtool_export --dependency-types exec
                       """)
-                      echo('↑↑↑ ROSDEP OUTPUT ↑↑↑')
                     }
+
+                    echo("↓↓↓ ROSDEP INSTALL AND CHECK - $repository_dir ($distribution) ↓↓↓")
+                    sh("""#!/bin/bash
+                      set -e
+                      source /home/locus/source_ros_workspace.bash $rosdistro_name
+                      export ROS_PACKAGE_PATH="\$PWD/workspace/src/$rosdistro_name:\${ROS_PACKAGE_PATH:-}"
+
+                      rosdep install --from-paths workspace/src/$rosdistro_name/$repository_dir --ignore-src -y $dep_types
+                      rosdep check --from-paths workspace/src/$rosdistro_name/$repository_dir --ignore-src $dep_types
+
+                      find baseline_repo -name package.xml -exec grep -ohP '(?<=<name>)[^<]+' {} + | sort -u > baseline_names.txt
+                      rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src $dep_types > workspace_rosdep.txt 2>&1 || true
+                      removed_package_errors=\$(grep -Fwf baseline_names.txt workspace_rosdep.txt || true)
+                      if [ -n "\$removed_package_errors" ]; then
+                        echo "Unresolved dependencies caused by packages removed from $repository_dir:"
+                        echo "\$removed_package_errors"
+                        exit 1
+                      fi
+                    """)
+                    echo("↑↑↑ ROSDEP INSTALL AND CHECK - $repository_dir ($distribution) ↑↑↑")
                   }
                 } finally {
                   library("tailor-meta@$tailor_meta")
@@ -146,9 +178,7 @@ def call(Map args) {
                 }
               }}]
             }
-            warnError('Rosdep check errors'){
-              parallel(jobs)
-            }
+            parallel(jobs)
           }
         }
       }
