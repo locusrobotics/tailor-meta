@@ -126,6 +126,7 @@ def call(Map args) {
                     returnStdout: true
                   ).trim()
 
+                  // Checkout the baseline repository
                   dir('baseline_repo') {
                     checkout([
                       $class: 'GitSCM',
@@ -161,8 +162,6 @@ def call(Map args) {
 
                       find baseline_repo -name package.xml -exec grep -ohP '(?<=<name>)[^<]+' {} + | sort -u > baseline_names.txt
                       rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src $dep_types > workspace_rosdep.txt 2>&1 || true
-                      cat workspace_rosdep.txt
-
                       removed_package_errors=\$(grep -Fwf baseline_names.txt workspace_rosdep.txt || true)
                       if [ -n "\$removed_package_errors" ]; then
                         echo "Unresolved dependencies caused by packages removed from $repository_dir:"
