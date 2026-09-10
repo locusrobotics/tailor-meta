@@ -109,7 +109,7 @@ def call(Map args) {
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
       booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
-      booleanParam(name: 'invalidate_colcon_cache', value: params.invalidate_colcon_cache)
+      booleanParam(name: 'force_rebuild_all', value: params.force_rebuild_all)
     ]
   }
 
@@ -129,7 +129,7 @@ def call(Map args) {
     parameters {
       booleanParam(name: 'force_mirror', defaultValue: false)
       booleanParam(name: 'invalidate_docker_cache', defaultValue: false)
-      booleanParam(name: 'invalidate_colcon_cache', defaultValue: false)
+      booleanParam(name: 'force_rebuild_all', defaultValue: false)
     }
 
     options {
