@@ -55,7 +55,11 @@ def call(Map args) {
       case BuildType.HOTDOG:
         return getBuildTrack()
       case BuildType.FEATURE:
-        return env.BRANCH_NAME.replaceFirst("feature/", "feature-")
+        // Convert the branch name to "feature-" since slashes aren't allowed for
+        // debian names.
+        // In addition convert the string to lower case which is also a requirement
+        // of debian package names.
+        return env.BRANCH_NAME.replaceFirst("feature/", "feature-").toLowerCase()
       case BuildType.TRIVIAL:
         return null
     }
