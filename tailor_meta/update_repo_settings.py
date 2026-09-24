@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from time import sleep
 from typing import Mapping, Any
 from urllib.parse import urlsplit
-from github.GithubException import UnknownObjectException, RateLimitExceededException
+from github.GithubException import UnknownObjectException, RateLimitExceededException, GithubException
 
 from . import YamlLoadAction
 
@@ -28,6 +28,11 @@ def gh_with_retry(client: github.Github, func, *args, **kwargs):
         click.echo(f"Points should be reset, remaining GH requests: {client.get_rate_limit().core.remaining}")
         click.echo("Trying request again...")
 
+        func(*args, **kwargs)
+    except GithubException as e:
+        click.echo(f"Github API error: {e.data}", err=True)
+        click.echo("Retrying request in 5 seconds...", err=True)
+        sleep(5)
         func(*args, **kwargs)
 
 
