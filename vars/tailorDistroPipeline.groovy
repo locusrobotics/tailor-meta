@@ -2,6 +2,7 @@
 enum BuildType{
   TRIVIAL,
   FEATURE,
+  HOTFIX,
   HOTDOG,
   CANDIDATE,
   FINAL
@@ -17,6 +18,7 @@ def call(Map args) {
   def timestamp = new Date().format('yyyyMMdd.HHmmss')
   def recipes_yaml = 'rosdistro/config/recipes.yaml'
   def common_config = [:]
+  def hotfix_definition = [:]
 
   def getBuildType = {
     if (env.TAG_NAME != null) {
@@ -25,6 +27,8 @@ def call(Map args) {
       return BuildType.CANDIDATE
     } else if (env.BRANCH_NAME == 'master') {
       return BuildType.HOTDOG
+    } else if (env.BRANCH_NAME.startsWith('hotfix/')) {
+      return BuildType.HOTFIX
     } else if (env.BRANCH_NAME.startsWith('feature/')) {
       return BuildType.FEATURE
     } else {
@@ -38,6 +42,8 @@ def call(Map args) {
         return env.TAG_NAME.split('\\.')[0..1].join('.')
       case BuildType.CANDIDATE: // convert release/19.1 into 19.1
         return env.BRANCH_NAME - 'release/'
+      case BuildType.HOTFIX:
+        return hotfix_definition['base_release']
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
         return 'hotdog'
@@ -52,6 +58,8 @@ def call(Map args) {
         return env.TAG_NAME
       case BuildType.CANDIDATE:
         return getBuildTrack() + '-rc'
+      case BuildType.HOTFIX:
+        return 'hotfix-' + (env.BRANCH_NAME - 'hotfix/')
       case BuildType.HOTDOG:
         return getBuildTrack()
       case BuildType.FEATURE:
@@ -71,6 +79,7 @@ def call(Map args) {
       case BuildType.CANDIDATE:
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
+      case BuildType.HOTFIX:
         return "30"
       case BuildType.TRIVIAL:
         return "1"
@@ -84,6 +93,7 @@ def call(Map args) {
         return ""
       case BuildType.HOTDOG:
       case BuildType.FEATURE:
+      case BuildType.HOTFIX:
         return "30"
       case BuildType.TRIVIAL:
         return "1"
@@ -101,6 +111,8 @@ def call(Map args) {
       string(name: 'rosdistro_job', value: ('/' + env.JOB_NAME)),
       string(name: 'release_track', value: getBuildTrack()),
       string(name: 'release_label', value: getBuildLabel()),
+      string(name: 'hotfix_definition', value: getBuildType() == BuildType.HOTFIX ?
+        "rosdistro/hotfixes/${env.BRANCH_NAME - 'hotfix/'}.yaml" : ''),
       string(name: 'num_to_keep', value: numToKeep()),
       string(name: 'days_to_keep', value: daysToKeep()),
       string(name: 'apt_repo', value: common_config['apt_repo']),
@@ -109,7 +121,7 @@ def call(Map args) {
       string(name: 'timestamp', value: timestamp),
       string(name: 'python_version', value: common_config['python_version']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
-      booleanParam(name: 'deploy', value: true),
+      booleanParam(name: 'deploy', value: getBuildType() != BuildType.HOTFIX),
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
       booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
@@ -169,6 +181,23 @@ def call(Map args) {
               checkout(scm)
             }
 
+            if (getBuildType() == BuildType.HOTFIX) {
+              def hotfix_name = env.BRANCH_NAME - 'hotfix/'
+              if (!(hotfix_name ==~ /[a-z0-9]+(?:-[a-z0-9]+)*/)) {
+                error('Hotfix branch must be hotfix/<lowercase-hyphenated-name>')
+              }
+              def definition_path = "rosdistro/hotfixes/${hotfix_name}.yaml"
+              if (!fileExists(definition_path)) {
+                error("Missing hotfix definition: ${definition_path}")
+              }
+              hotfix_definition = readYaml(file: definition_path)
+              if (hotfix_definition['name'] != hotfix_name ||
+                  !(hotfix_definition['base_release'] instanceof String) ||
+                  !hotfix_definition['base_release']) {
+                error("Hotfix definition must name ${hotfix_name} and specify base_release")
+              }
+            }
+
             // TODO(pbovbel) validate rosdistro and config here
 
             common_config = readYaml(file: recipes_yaml)['common']
@@ -195,7 +224,7 @@ def call(Map args) {
         agent none
         when {
           expression {
-            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
+            getBuildType() in [BuildType.FEATURE, BuildType.HOTFIX, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
           }
         }
         steps {
