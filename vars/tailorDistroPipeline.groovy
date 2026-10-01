@@ -121,7 +121,7 @@ def call(Map args) {
       string(name: 'timestamp', value: timestamp),
       string(name: 'python_version', value: common_config['python_version']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
-      booleanParam(name: 'deploy', value: getBuildType() != BuildType.HOTFIX),
+      booleanParam(name: 'deploy', value: true),
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
       booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
