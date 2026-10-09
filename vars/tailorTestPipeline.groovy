@@ -132,7 +132,7 @@ def call(Map args) {
                       $class: 'GitSCM',
                       branches: [[name: source_branch]],
                       userRemoteConfigs: scm.userRemoteConfigs,
-                      extensions: [[$class: 'CloneOption', depth: 1, shallow: true, noTags: true]],
+                      extensions: [[$class: 'CloneOption', depth: 1, shallow: true, noTags: true], [$class: 'GitLFSPull']],
                     ])
                   }
 
