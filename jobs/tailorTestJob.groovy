@@ -31,7 +31,8 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
                 'org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait',
                 'org.jenkinsci.plugins.github_branch_source.OriginPullRequestDiscoveryTrait',
                 'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait',
-                'io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait'
+                'io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait',
+                'jenkins.plugins.git.traits.GitLFSPullTrait'
               ]
             }
 
@@ -60,6 +61,10 @@ def buildPipelineJob(String job_name, String repo_name, String owner_name, Strin
             // Skip Github Branch source automatic status notifications
             def statusChecks = traitsNode.appendNode('io.jenkins.plugins.checks.github.status.GitHubSCMSourceStatusChecksTrait')
             statusChecks.appendNode('skipNotifications', 'false')
+
+            // Pull LFS objects after checkout with the checkout credentials; downloading them
+            // during checkout fails with "Bad credentials" on repos that use LFS
+            traitsNode.appendNode('jenkins.plugins.git.traits.GitLFSPullTrait')
 
             // Add property to trigger job via PR comment
             def strategy = (job / 'sources' / 'data' / 'jenkins.branch.BranchSource' / 'strategy')
