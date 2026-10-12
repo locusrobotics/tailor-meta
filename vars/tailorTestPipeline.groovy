@@ -30,6 +30,12 @@ def call(Map args) {
       timestamps()
     }
 
+    // Only the controller has git-lfs, and its checkout fails with "Bad credentials" downloading LFS objects.
+    // Agents have no git-lfs and check out pointer files, so skip the download everywhere to match them.
+    environment {
+      GIT_LFS_SKIP_SMUDGE = '1'
+    }
+
     stages {
       stage("Trigger PR integration tests"){
         agent none
@@ -132,7 +138,7 @@ def call(Map args) {
                       $class: 'GitSCM',
                       branches: [[name: source_branch]],
                       userRemoteConfigs: scm.userRemoteConfigs,
-                      extensions: [[$class: 'CloneOption', depth: 1, shallow: true, noTags: true], [$class: 'GitLFSPull']],
+                      extensions: [[$class: 'CloneOption', depth: 1, shallow: true, noTags: true]],
                     ])
                   }
 
