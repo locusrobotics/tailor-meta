@@ -42,7 +42,7 @@ def call(Map args) {
       case BuildType.FEATURE:
         return 'hotdog'
       case BuildType.TRIVIAL:
-        return null
+        return env.CHANGE_TARGET?.startsWith('release/') ? env.CHANGE_TARGET - 'release/' : 'hotdog'
     }
   }
 
@@ -61,7 +61,10 @@ def call(Map args) {
         // of debian package names.
         return env.BRANCH_NAME.replaceFirst("feature/", "feature-").toLowerCase()
       case BuildType.TRIVIAL:
-        return null
+        if (env.CHANGE_TARGET?.startsWith('feature/')) {
+          return env.CHANGE_TARGET.replaceFirst("feature/", "feature-").toLowerCase()
+        }
+        return env.CHANGE_TARGET?.startsWith('release/') ? getBuildTrack() + '-rc' : getBuildTrack()
     }
   }
 
@@ -109,7 +112,8 @@ def call(Map args) {
       string(name: 'timestamp', value: timestamp),
       string(name: 'python_version', value: common_config['python_version']),
       booleanParam(name: 'force_mirror', value: params.force_mirror),
-      booleanParam(name: 'deploy', value: true),
+      booleanParam(name: 'deploy', value: getBuildType() != BuildType.TRIVIAL),
+      booleanParam(name: 'graph_only', value: getBuildType() == BuildType.TRIVIAL),
       booleanParam(name: 'invalidate_docker_cache', value: params.invalidate_docker_cache),
       booleanParam(name: 'per_package_build', value: per_package_build),
       string(name: 'apt_refresh_key', value: weekNum),
@@ -173,14 +177,16 @@ def call(Map args) {
 
             common_config = readYaml(file: recipes_yaml)['common']
             archiveArtifacts(artifacts: "rosdistro/**/*", allowEmptyArchive: true)
-            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
-              s3Upload(
-                // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
-                bucket: common_config['apt_repo'] - 's3://',
-                path: getBuildLabel(),
-                includePathPattern: 'rosdistro/**, rosdep/**, config/**',
-                workingDir: 'rosdistro',
-              )
+            if (getBuildType() != BuildType.TRIVIAL) {
+              withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'tailor_aws']]) {
+                s3Upload(
+                  // TODO(pbovbel) should go 'all in' on s3 with tailor? Silly to post-process everywhere.
+                  bucket: common_config['apt_repo'] - 's3://',
+                  path: getBuildLabel(),
+                  includePathPattern: 'rosdistro/**, rosdep/**, config/**',
+                  workingDir: 'rosdistro',
+                )
+              }
             }
           }
         }
@@ -193,11 +199,6 @@ def call(Map args) {
 
       stage("Sub-pipeline: build distribution") {
         agent none
-        when {
-          expression {
-            getBuildType() in [BuildType.FEATURE, BuildType.HOTDOG, BuildType.CANDIDATE, BuildType.FINAL]
-          }
-        }
         steps {
           script {
             createTailorJob('tailor-distro', tailor_distro)
