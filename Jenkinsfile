@@ -15,6 +15,7 @@ pipeline {
     string(name: 'num_to_keep', defaultValue: '10')
     string(name: 'days_to_keep', defaultValue: '10')
     string(name: 'docker_registry')
+    string(name: 'tailor_meta')
     booleanParam(name: 'deploy', defaultValue: false)
     booleanParam(name: 'invalidate_cache', defaultValue: false)
     string(name: 'apt_refresh_key')
@@ -25,7 +26,26 @@ pipeline {
   }
 
   stages {
+    // tailor-meta is built by the rosdistro pipeline, which passes the registry and versions.
+    // Builds started by a branch push or PR get none of them, so skip instead of failing.
+    stage("Check build trigger") {
+      when {
+        beforeAgent true
+        expression { !params.docker_registry }
+      }
+      steps {
+        echo('No docker_registry parameter: not started by a rosdistro pipeline, skipping.')
+        script {
+          currentBuild.result = 'NOT_BUILT'
+        }
+      }
+    }
+
     stage("Configure build parameters") {
+      when {
+        beforeAgent true
+        expression { params.docker_registry }
+      }
       agent { label 'master' }
       steps {
         script {
@@ -53,6 +73,10 @@ pipeline {
     }
 
     stage("Build tailor-meta") {
+      when {
+        beforeAgent true
+        expression { params.docker_registry }
+      }
       agent any
       steps {
         script {
@@ -97,6 +121,10 @@ pipeline {
     }
 
     stage("Update repositories") {
+      when {
+        beforeAgent true
+        expression { params.docker_registry }
+      }
       agent any
       steps {
         script {
