@@ -155,12 +155,14 @@ def call(Map args) {
                     sh("""#!/bin/bash
                       set -e
                       source /home/locus/source_ros_workspace.bash $rosdistro_name
-                      export ROS_PACKAGE_PATH="\$PWD/workspace/src/$rosdistro_name:\${ROS_PACKAGE_PATH:-}"
+                      export ROS_PACKAGE_PATH="\$PWD/workspace/src/$rosdistro_name\${ROS_PACKAGE_PATH:+:\$ROS_PACKAGE_PATH}"
+
+                      find baseline_repo -name package.xml -exec grep -ohP '(?<=<name>)[^<]+' {} + | sort -u > baseline_names.txt
+                      rm -rf baseline_repo
 
                       rosdep install --from-paths workspace/src/$rosdistro_name/$repository_dir --ignore-src -y $dep_types
                       rosdep check --from-paths workspace/src/$rosdistro_name/$repository_dir --ignore-src $dep_types
 
-                      find baseline_repo -name package.xml -exec grep -ohP '(?<=<name>)[^<]+' {} + | sort -u > baseline_names.txt
                       rosdep check --from-paths workspace/src/$rosdistro_name --ignore-src $dep_types > workspace_rosdep.txt 2>&1 || true
                       removed_package_errors=\$(grep -Fwf baseline_names.txt workspace_rosdep.txt || true)
                       if [ -n "\$removed_package_errors" ]; then
