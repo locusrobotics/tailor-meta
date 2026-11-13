@@ -1,0 +1,17 @@
+**
+!tailor-meta/
+!tailor-meta/**
+!rosdistro/
+!rosdistro/config/
+!rosdistro/config/**
+!rosdistro/rosdep/
+!rosdistro/rosdep/**
+!rosdistro/rosdistro/
+!rosdistro/rosdistro/**
+!debian/
+!debian/Dockerfile-*
+**/.git
+**/__pycache__
+**/.venv
+**/*.egg-info
+**/.pytest_cache

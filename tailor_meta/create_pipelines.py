@@ -1,139 +1,109 @@
-#!/usr/bin/python3
+"""Manage thin Actions caller stubs, aggregated by repository and source branch."""
 import argparse
 import json
+import os
+from pathlib import Path
+from urllib.parse import urlsplit
+
 import click
 import github
-import pathlib
 import rosdistro
-import sys
 import yaml
-
-from typing import Mapping, Any
-from urllib.parse import urlsplit
 
 from . import YamlLoadAction
 
 WORKFLOW_PATH = '.github/workflows/tailor.yaml'
 
 
-def source_workflow(context):
-    """Only a caller stub is installed in each opted-in source repository."""
+def source_workflow(contexts):
+    """One workflow per branch, with a reusable job for every ROS distribution."""
+    jobs = {}
+    for context in contexts:
+        key = context['rosdistro_name']
+        if key in jobs:
+            raise ValueError(f'Duplicate {key} source job on one repository branch')
+        jobs[key] = {
+            'uses': f'locusrobotics/tailor-meta/.github/workflows/source.yaml@{context["tailor_meta"]}',
+            'with': {name: context[name] for name in (
+                'rosdistro_name', 'repository_name', 'source_branch', 'release_track', 'release_label', 'docker_registry')},
+            'secrets': 'inherit',
+        }
+        jobs[key]['with'].update(source_ref='${{ inputs.source_ref || github.sha }}',
+                                 distributions=json.dumps(context['distributions']))
+    branches = sorted({context['source_branch'] for context in contexts})
     return yaml.safe_dump({
         'name': 'Tailor source checks',
-        'on': {'push': {'branches': [context['source_branch']]}, 'pull_request': {}, 'workflow_dispatch': {
+        'on': {'push': {'branches': branches}, 'pull_request': {'branches': branches}, 'workflow_dispatch': {
             'inputs': {'source_ref': {'description': 'Optional reviewed PR ref (pull/123/merge)',
-                                      'type': 'string', 'default': ''}},
-        }},
-        'permissions': {'contents': 'read'},
-        'jobs': {'tailor': {
-            'uses': f"locusrobotics/tailor-meta/.github/workflows/source.yaml@{context['tailor_meta']}",
-            'with': {
-                'tailor_meta': context['tailor_meta'],
-                'rosdistro_name': context['rosdistro_name'],
-                'repository_name': context['repository_name'],
-                'source_branch': context['source_branch'],
-                'source_ref': '${{ inputs.source_ref || github.sha }}',
-                'release_track': context['release_track'],
-                'release_label': context['release_label'],
-                'distributions': json.dumps(context['distributions']),
-                'docker_registry': context['docker_registry'],
-            },
-            'secrets': 'inherit',
-        }},
+                                      'type': 'string', 'default': ''}}}},
+        'permissions': {'contents': 'read'}, 'jobs': jobs,
     }, sort_keys=False)
 
 
-def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], github_key: str, deploy: bool,
-                     meta_branch: str, release_track: str, release_label: str, rosdistro_job: str):
+def collect_sources(rosdistro_index, recipes, meta_branch, release_track, release_label):
     index = rosdistro.get_index(rosdistro_index.resolve().as_uri())
-    github_client = github.Github(github_key)  # TODO(pbovbel) support more than just github?
-
-    common_options = recipes['common']
-
-    all_distros = [distro for distros in recipes['os'].values() for distro in distros]
-
-    managed_repositories = []
-
-    for distro_name, _ in common_options['distributions'].items():
-
-        distro = rosdistro.get_distribution(index, distro_name)
-        try:
-            allowed_distros = common_options['distributions'][distro_name]['os']
-            # If allowed distros is empty, because we used [] in recipes, use all distros
-            if not allowed_distros:
-                allowed_distros = all_distros
-        except KeyError:
-            # If ros distro doesn't have distros configured, use all distros
-            allowed_distros = all_distros
-
-        for repo_name, repository_data in distro.repositories.items():
-            if not repository_data.source_repository or not repository_data.source_repository.test_commits:
+    common = recipes['common']
+    all_os = [os_version for versions in recipes['os'].values() for os_version in versions]
+    grouped = {}
+    for distro_name, options in common['distributions'].items():
+        distribution = rosdistro.get_distribution(index, distro_name)
+        allowed = options.get('os') or all_os
+        for name, data in distribution.repositories.items():
+            source = data.source_repository
+            if not source or not source.test_commits:
                 continue
+            url = urlsplit(source.url)
+            if url.hostname != 'github.com':
+                raise ValueError(f'Unsupported source host for {name}')
+            repository = url.path.strip('/').removesuffix('.git')
+            grouped.setdefault((repository, source.version), []).append(dict(
+                tailor_meta=meta_branch, repository_name=name, source_branch=source.version,
+                rosdistro_name=distro_name, release_track=release_track, release_label=release_label,
+                distributions=[os_version for os_version in all_os if os_version in allowed],
+                docker_registry=common['docker_registry'],
+            ))
+    return grouped
 
-            click.echo(f"Managing Actions workflow for repo {repo_name}", err=True)
 
-            url = repository_data.source_repository.url
-            branch = repository_data.source_repository.version
-
-            gh_repo_name = urlsplit(url).path.strip('/').removesuffix('.git')
-            gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
-
-            context = {
-                'tailor_meta': meta_branch,
-                'repository_name': repo_name,
-                'source_branch': branch,
-                'rosdistro_job': rosdistro_job,
-                'rosdistro_name': distro_name,
-                'release_track': release_track,
-                'release_label': release_label,
-                'distributions': allowed_distros,
-                'docker_registry': common_options['docker_registry'],
-            }
-
-            new_workflow = source_workflow(context)
-            try:
-                old_workflow = gh_repo.get_contents(path=WORKFLOW_PATH, ref=branch)
-
-                if old_workflow.decoded_content.decode() != new_workflow:
-                    click.echo("Updating existing file...", err=True)
-                    if deploy:
-                        gh_repo.update_file(
-                            path=WORKFLOW_PATH,
-                            message='Tailor: Updating Actions workflow',
-                            content=new_workflow,
-                            sha=old_workflow.sha,
-                            branch=branch)
-                else:
-                    click.echo("No change required", err=True)
-            except github.GithubException as error:
-                if error.status != 404:
-                    raise
-                click.echo("Writing new file...", err=True)
-                if deploy:
-                    gh_repo.create_file(
-                        path=WORKFLOW_PATH,
-                        message='Tailor: Creating Actions workflow',
-                        content=new_workflow,
-                        branch=branch)
-
-            managed_repositories.append({'repo_name': repo_name, 'owner_name': gh_repo.owner.login})
-
-    print(yaml.dump(managed_repositories))
+def create_pipelines(rosdistro_index, recipes, github_key, deploy, meta_branch, release_track, release_label,
+                     output_dir=None):
+    grouped = collect_sources(rosdistro_index, recipes, meta_branch, release_track, release_label)
+    client = github.Github(github_key)
+    for (repository, branch), contexts in sorted(grouped.items()):
+        workflow = source_workflow(contexts)
+        if output_dir:
+            # Separate filenames for branches without ambiguous slash replacement.
+            import hashlib
+            branch_id = hashlib.sha256(branch.encode()).hexdigest()[:12]
+            path = output_dir / repository / branch_id / 'tailor.yaml'
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(workflow)
+        click.echo(f'{repository}@{branch}: {", ".join(c["rosdistro_name"] for c in contexts)}', err=True)
+        if not deploy:
+            continue
+        repo = client.get_repo(repository)
+        try:
+            old = repo.get_contents(WORKFLOW_PATH, ref=branch)
+        except github.GithubException as error:
+            if error.status != 404:
+                raise
+            repo.create_file(WORKFLOW_PATH, 'Tailor: Create Actions workflow', workflow, branch=branch)
+        else:
+            if old.decoded_content.decode() != workflow:
+                repo.update_file(WORKFLOW_PATH, 'Tailor: Update Actions workflow', workflow, old.sha, branch=branch)
 
 
 def main():
-    parser = argparse.ArgumentParser(description=create_pipelines.__doc__)
-    parser.add_argument('--rosdistro-index', type=pathlib.Path)
-    parser.add_argument('--rosdistro-job', type=str)
-    parser.add_argument('--github-key', type=str)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--rosdistro-index', type=Path, required=True)
+    parser.add_argument('--github-key', default=os.environ.get('GITHUB_TOKEN'))
     parser.add_argument('--recipes', action=YamlLoadAction, required=True)
-    parser.add_argument('--meta-branch', type=str, required=True)
-    parser.add_argument('--release-track', type=str, required=True)
-    parser.add_argument('--release-label', type=str, required=True)
+    parser.add_argument('--meta-branch', required=True)
+    parser.add_argument('--release-track', required=True)
+    parser.add_argument('--release-label', required=True)
     parser.add_argument('--deploy', action='store_true')
-    args = parser.parse_args()
-
-    sys.exit(create_pipelines(**vars(args)))
+    parser.add_argument('--output-dir', type=Path)
+    create_pipelines(**vars(parser.parse_args()))
 
 
 if __name__ == '__main__':

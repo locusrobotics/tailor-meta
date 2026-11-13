@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM ubuntu:noble AS base
 
 LABEL tailor="environment"
@@ -8,19 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     PYTHONUNBUFFERED=1
 
-ARG AWS_ACCESS_KEY_ID
-ARG AWS_SECRET_ACCESS_KEY
-ARG AWS_REGION
-ENV AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-    AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-
 ARG APT_REFRESH_KEY
-
-# Create auth config file for accessing s3 via apt
-RUN echo "AccessKeyId = $AWS_ACCESS_KEY_ID" | tee /etc/apt/s3auth.conf && \
-    echo "SecretAccessKey = $AWS_SECRET_ACCESS_KEY" | tee -a /etc/apt/s3auth.conf && \
-    echo "Token = ''" | tee -a /etc/apt/s3auth.conf && \
-    echo "Region = $AWS_REGION" | tee -a /etc/apt/s3auth.conf
 
 # Apt network failure handling
 RUN printf 'Acquire::http::Timeout "10";\nAcquire::https::Timeout "10";\nAcquire::Retries "3";\n' \

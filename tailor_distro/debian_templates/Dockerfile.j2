@@ -1,19 +1,14 @@
+# syntax=docker/dockerfile:1
 FROM {{ os_name }}:{{ os_version }}
 
 LABEL tailor="environment"
 
 SHELL ["/bin/bash", "-c"]
 
-ARG AWS_ACCESS_KEY_ID
-ARG AWS_SECRET_ACCESS_KEY
 ARG UNION_BUILD_DEPENDS
 ARG UNION_RUN_DEPENDS
 ARG APT_REFRESH_KEY
-ARG GITHUB_TOKEN
 ARG ORGANIZATION
-
-ENV AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-    AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
@@ -83,15 +78,10 @@ RUN curl --proto '=https' --tlsv1.2 -sSfL \
     chmod -R a+rwX /opt/rust && \
     cargo --version
 
-# Create auth config file for accesing s3 via apt
-RUN echo "AccessKeyId = $AWS_ACCESS_KEY_ID" | tee /etc/apt/s3auth.conf && \
-    echo "SecretAccessKey = $AWS_SECRET_ACCESS_KEY" | tee -a /etc/apt/s3auth.conf && \
-    echo "Token = ''" | tee -a /etc/apt/s3auth.conf && \
-    echo "Region = '{{ bucket_region }}'" | tee -a /etc/apt/s3auth.conf
-
 # Add package mirror
 # TODO(pbovbel) read this from configuration
-RUN curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x142D5F1683E1528B" \
+RUN --mount=type=secret,id=s3auth,target=/etc/apt/s3auth.conf,required=true \
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x142D5F1683E1528B" \
       | gpg --dearmor -o /etc/apt/trusted.gpg.d/tailor.gpg && \
     echo "deb [arch=amd64] s3://{{ bucket_name }}/{{ release_label }}/ubuntu {{ os_version }}-mirror {{ os_version }}" >> /etc/apt/sources.list && \
     apt-get update && apt-get dist-upgrade -y && \
@@ -104,7 +94,9 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
  && ./aws/install \
  && rm -rf awscliv2.zip aws
 
-RUN echo "Checking whether S3 APT repo is initialized..."; \
+# The AWS profile is provided only for this read-only existence check.
+RUN --mount=type=secret,id=aws,target=/root/.aws/credentials,required=true \
+    echo "Checking whether S3 APT repo is initialized..."; \
     if aws s3api head-object \
         --bucket "{{ bucket_name }}" \
         --key    "{{ release_label }}/ubuntu/dists/{{ os_version }}/InRelease" \
@@ -116,7 +108,8 @@ RUN echo "Checking whether S3 APT repo is initialized..."; \
 
 # Install build and run dependencies
 # TODO(pbovbel) install contrainted versions of packages rather than using 'regex_replace'
-RUN apt-get update && RTI_NC_LICENSE_ACCEPTED=yes apt-get install --no-install-recommends -y \
+RUN --mount=type=secret,id=s3auth,target=/etc/apt/s3auth.conf,required=true \
+    apt-get update && RTI_NC_LICENSE_ACCEPTED=yes apt-get install --no-install-recommends -y \
   ${UNION_BUILD_DEPENDS} ${UNION_RUN_DEPENDS} && \
   rm -rf /var/lib/apt/lists/*
 
@@ -164,6 +157,3 @@ USER $USER_NAME
 # Set workdir
 WORKDIR /home/$USER_NAME
 RUN mkdir -p "$ROS_HOME"
-
-# Configure git to use the provided github token for accessing private repos
-RUN git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/${ORGANIZATION}/".insteadOf "ssh://git@github.com/${ORGANIZATION}/"

@@ -1,8 +1,8 @@
+# syntax=docker/dockerfile:1
 FROM ubuntu:noble
 
 LABEL tailor="environment"
 
-ARG ANSIBLE_VAULT_PASS
 ARG APT_REPO
 ARG APT_REGION
 ARG RELEASE_LABEL
@@ -10,19 +10,12 @@ ARG ORGANIZATION
 ARG FLAVOUR
 ARG BUNDLE_ROOT
 
-ARG AWS_ACCESS_KEY_ID
-ARG AWS_SECRET_ACCESS_KEY
-ARG AWS_DEFAULT_REGION=us-east-1
-ARG GITHUB_TOKEN
 ARG APT_REFRESH_KEY
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     PYTHONUNBUFFERED=1 \
-    BUNDLE_ROOT=${BUNDLE_ROOT} \
-    AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-    AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-    GITHUB_TOKEN=${GITHUB_TOKEN}
+    BUNDLE_ROOT=${BUNDLE_ROOT}
 
 SHELL ["/bin/bash", "-c"]
 
@@ -110,13 +103,8 @@ RUN if ! timeout --kill-after=30s 3m \
     echo "deb [arch=amd64] ${APT_REPO}/${RELEASE_LABEL}/ubuntu noble main" >> /etc/apt/sources.list && \
     echo "deb [arch=amd64] ${APT_REPO}/${RELEASE_LABEL}/ubuntu noble-mirror noble" >> /etc/apt/sources.list
 
-# Create auth config file for accesing s3 via apt
-RUN echo "AccessKeyId = $AWS_ACCESS_KEY_ID" | tee /etc/apt/s3auth.conf && \
-    echo "SecretAccessKey = $AWS_SECRET_ACCESS_KEY" | tee -a /etc/apt/s3auth.conf && \
-    echo "Token = ''" | tee -a /etc/apt/s3auth.conf && \
-    echo "Region = '${APT_REGION}'" | tee -a /etc/apt/s3auth.conf
-
-RUN apt-get update && \
+RUN --mount=type=secret,id=s3auth,target=/etc/apt/s3auth.conf,required=true \
+    apt-get update && \
     RTI_NC_LICENSE_ACCEPTED=yes apt-get install --no-install-recommends -qy\
     ${ORGANIZATION}-${FLAVOUR}-${RELEASE_LABEL}  && \
     rm -rf /var/lib/apt/lists/*
@@ -132,8 +120,3 @@ RUN usermod -md "/home/$USER_NAME" -s /bin/bash -l $USER_NAME ubuntu && \
 
 USER ${USER_NAME}
 WORKDIR /home/${USER_NAME}
-
-RUN echo "${ANSIBLE_VAULT_PASS}" | tee /home/tailor/.vault_pass.txt && \
-    aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID} && \
-    aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY} && \
-    aws configure set default.region ${AWS_DEFAULT_REGION}

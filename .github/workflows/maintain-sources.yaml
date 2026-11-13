@@ -1,0 +1,57 @@
+name: Maintain source workflow stubs
+on:
+  workflow_call:
+    inputs:
+      tailor_meta:
+        type: string
+        required: true
+      apply:
+        type: boolean
+        default: false
+    secrets:
+      TAILOR_MAINTENANCE_TOKEN:
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: tailor-source-maintenance-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  update:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: rosdistro
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta }}
+          path: tailor-meta
+          persist-credentials: false
+      - run: pip install ./tailor-meta
+      - name: Generate or apply aggregated stubs
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAILOR_MAINTENANCE_TOKEN }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import yaml
+          from tailor_meta.actions import release, revision
+          from tailor_meta.create_pipelines import create_pipelines
+          target = release(os.environ['GITHUB_REF'])
+          if target['kind'] not in ('hotdog', 'candidate'):
+              raise SystemExit('Source maintenance requires master or release/*')
+          create_pipelines(Path('rosdistro/rosdistro/index.yaml'),
+                           yaml.safe_load(Path('rosdistro/config/recipes.yaml').read_text()),
+                           os.environ.get('GITHUB_TOKEN'), os.environ['APPLY'] == 'true',
+                           revision(Path('tailor-meta')), target['track'], target['label'], Path('stubs'))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-workflow-stubs
+          path: stubs/**/*.yaml

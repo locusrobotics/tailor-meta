@@ -4,10 +4,11 @@ on:
     inputs:
       tailor_meta:
         type: string
-        default: master
-      deploy:
-        type: boolean
-        default: false
+        required: true
+      mode:
+        description: validate, graph, packages, or release
+        type: string
+        default: packages
       force_mirror:
         type: boolean
         default: false
@@ -17,16 +18,18 @@ on:
       invalidate_colcon_cache:
         type: boolean
         default: false
-      graph_only:
-        type: boolean
-        default: false
-      update_sources:
-        type: boolean
-        default: false
     secrets:
-      TAILOR_GITHUB_TOKEN:
+      TAILOR_SOURCE_TOKEN:
+        description: Read-only source access
+        required: false
+      AWS_READ_ACCESS_KEY_ID:
+        required: false
+      AWS_READ_SECRET_ACCESS_KEY:
+        required: false
+      AWS_READ_SESSION_TOKEN:
         required: false
       AWS_ACCESS_KEY_ID:
+        description: Publication credentials, used only in mirror/publish/images stages
         required: false
       AWS_SECRET_ACCESS_KEY:
         required: false
@@ -34,14 +37,11 @@ on:
         required: false
       ANSIBLE_VAULT_PASS:
         required: false
-
 permissions:
   contents: read
-
 concurrency:
   group: tailor-distribution-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   validate:
     runs-on: ubuntu-24.04
@@ -50,44 +50,31 @@ jobs:
         with:
           path: rosdistro
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta }}
+          path: tailor-meta
+          persist-credentials: false
       - run: pip install PyYAML==6.0.2 Jinja2==3.1.6
-      - name: Validate untrusted configuration without credentials
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import yaml
-          from jinja2 import StrictUndefined
-          from jinja2.sandbox import SandboxedEnvironment
-          root = Path('rosdistro')
-          for directory in ('rosdistro', 'rosdep', 'config'):
-              for path in (root / directory).glob('*.yaml'):
-                  if path.name != 'upstream.yaml':
-                      yaml.safe_load(path.read_text())
-          recipes = yaml.safe_load((root / 'config/recipes.yaml').read_text())
-          template = SandboxedEnvironment(undefined=StrictUndefined).from_string(
-              (root / 'config/upstream.yaml').read_text())
-          for codename in recipes['os']['ubuntu']:
-              yaml.safe_load(template.render(distribution=codename))
-          PY
+      - name: Validate configuration and mode
+        env:
+          MODE: ${{ inputs.mode }}
+        run: python3 tailor-meta/ci/validate.py rosdistro --mode "$MODE"
   build:
     needs: validate
-    # Never run pull-request code on the privileged buildfarm.
     if: >-
-      github.event_name != 'pull_request' &&
+      inputs.mode != 'validate' && github.event_name != 'pull_request' &&
       (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/feature/') ||
        startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/'))
     runs-on: [self-hosted, linux, x64, tailor]
-    environment: ${{ inputs.deploy && 'tailor-production' || 'tailor-build' }}
     timeout-minutes: 1440
+    defaults:
+      run:
+        shell: bash
     env:
       BUILD_DIR: ${{ github.workspace }}/build-${{ github.run_id }}-${{ github.run_attempt }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       AWS_DEFAULT_REGION: us-east-1
-      GITHUB_TOKEN: ${{ secrets.TAILOR_GITHUB_TOKEN }}
-      ANSIBLE_VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASS }}
-      TAILOR_GPG_DIR: ${{ vars.TAILOR_GPG_DIR }}
       DOCKER_BUILDKIT: '1'
     steps:
       - uses: actions/checkout@v4
@@ -98,77 +85,111 @@ jobs:
         with:
           repository: locusrobotics/tailor-meta
           ref: ${{ inputs.tailor_meta }}
-          token: ${{ secrets.TAILOR_GITHUB_TOKEN }}
           path: tailor-meta
           persist-credentials: false
-      - run: |
-          test -n "$TAILOR_GPG_DIR"
-          test -d "$TAILOR_GPG_DIR"
-          test -n "$GITHUB_TOKEN"
-          test -n "$AWS_ACCESS_KEY_ID"
-          test -n "$AWS_SECRET_ACCESS_KEY"
+      - name: Create immutable build identity
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
           python3 -m venv "$RUNNER_TEMP/tailor-venv"
           "$RUNNER_TEMP/tailor-venv/bin/pip" install -e ./tailor-meta
+          echo "$RUNNER_TEMP/tailor-venv/bin" >> "$GITHUB_PATH"
           mkdir "$BUILD_DIR"
           cp -a rosdistro tailor-meta "$BUILD_DIR/"
-      - name: Build distribution and images
+          cd "$BUILD_DIR"
+          tailor_actions plan --mode "$MODE"
+      - name: Fetch and record source revisions
         env:
-          DEPLOY: ${{ inputs.deploy }}
-          FORCE_MIRROR: ${{ inputs.force_mirror }}
+          GITHUB_TOKEN: ${{ secrets.TAILOR_SOURCE_TOKEN }}
           NO_CACHE: ${{ inputs.invalidate_docker_cache }}
-          REBUILD: ${{ inputs.invalidate_colcon_cache }}
-          GRAPH_ONLY: ${{ inputs.graph_only }}
-          PYTHONPATH: tailor-meta
         run: |
           cd "$BUILD_DIR"
           args=()
-          [[ "$DEPLOY" != true ]] || args+=(--deploy)
-          [[ "$FORCE_MIRROR" != true ]] || args+=(--force-mirror)
           [[ "$NO_CACHE" != true ]] || args+=(--no-cache)
-          [[ "$REBUILD" != true ]] || args+=(--rebuild)
-          [[ "$GRAPH_ONLY" != true ]] || args+=(--graph-only)
-          "$RUNNER_TEMP/tailor-venv/bin/python" -m tailor_meta.actions build "${args[@]}"
-      - name: Manage source workflow stubs
-        if: inputs.update_sources && inputs.deploy && !inputs.graph_only
+          tailor_actions fetch "${args[@]}"
+      - name: Publish dependency mirrors
+        if: inputs.mode == 'release'
         env:
-          PYTHONPATH: tailor-meta
-          META_REF: ${{ inputs.tailor_meta }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          TAILOR_GPG_DIR: ${{ vars.TAILOR_GPG_DIR }}
+          FORCE_MIRROR: ${{ inputs.force_mirror }}
         run: |
           cd "$BUILD_DIR"
-          plan=$("$RUNNER_TEMP/tailor-venv/bin/python" -m tailor_meta.actions plan)
-          track=$(jq -r .track <<< "$plan")
-          label=$(jq -r .label <<< "$plan")
-          if [[ "$label" == hotdog || "$label" == *-rc ]]; then
-            "$RUNNER_TEMP/tailor-venv/bin/create_pipelines" \
-              --rosdistro-index rosdistro/rosdistro/index.yaml \
-              --recipes rosdistro/config/recipes.yaml --github-key "$GITHUB_TOKEN" \
-              --meta-branch "$META_REF" --release-track "$track" \
-              --release-label "$label" --rosdistro-job "$GITHUB_REPOSITORY" --deploy
-          fi
+          args=()
+          [[ "$FORCE_MIRROR" != true ]] || args+=(--force-mirror)
+          tailor_actions mirror "${args[@]}"
+      - name: Resolve package graphs
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_READ_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_READ_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_READ_SESSION_TOKEN }}
+        run: |
+          cd "$BUILD_DIR"
+          tailor_actions graph
+      - name: Build all OS package sets
+        if: inputs.mode != 'graph'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_READ_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_READ_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_READ_SESSION_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TAILOR_SOURCE_TOKEN }}
+          REBUILD: ${{ inputs.invalidate_colcon_cache }}
+          NO_CACHE: ${{ inputs.invalidate_docker_cache }}
+        run: |
+          cd "$BUILD_DIR"
+          args=()
+          [[ "$REBUILD" != true ]] || args+=(--rebuild)
+          [[ "$NO_CACHE" != true ]] || args+=(--no-cache)
+          tailor_actions packages "${args[@]}"
+      - name: Publish verified package sets
+        if: inputs.mode == 'release'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          TAILOR_GPG_DIR: ${{ vars.TAILOR_GPG_DIR }}
+        run: |
+          cd "$BUILD_DIR"
+          tailor_actions publish
+      - name: Build and publish images
+        if: inputs.mode == 'release'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          ANSIBLE_VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASS }}
+          NO_CACHE: ${{ inputs.invalidate_docker_cache }}
+        run: |
+          cd "$BUILD_DIR"
+          args=()
+          [[ "$NO_CACHE" != true ]] || args+=(--no-cache)
+          tailor_actions images "${args[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: tailor-diagnostics
           retention-days: 30
           path: |
+            ${{ env.BUILD_DIR }}/build-plan.json
             ${{ env.BUILD_DIR }}/workspace/recipes/*.yaml
             ${{ env.BUILD_DIR }}/workspace/graphs/*
             ${{ env.BUILD_DIR }}/workspace/dependencies/*
-            ${{ env.BUILD_DIR }}/workspace/src/**/*_repositories_data.jsonl
-            ${{ env.BUILD_DIR }}/build-report-*.yaml
             ${{ env.BUILD_DIR }}/builds/*/build-report-*.yaml
       - uses: actions/upload-artifact@v4
-        if: success() && !inputs.deploy && !inputs.graph_only
+        if: success() && inputs.mode == 'packages'
         with:
           name: tailor-packages
           retention-days: 7
           path: ${{ env.BUILD_DIR }}/packages/**/*.deb
-      - name: Remove run-local build outputs
+      - name: Remove run-local outputs
         if: always()
         run: |
-          # Delete only this run's generated directory, never shared runner data.
+          if [[ -f "$BUILD_DIR/build-plan.json" ]]; then
+            (cd "$BUILD_DIR" && tailor_actions cleanup)
+          fi
           case "$BUILD_DIR" in
-            "$GITHUB_WORKSPACE/build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
-              sudo rm -rf -- "$BUILD_DIR" ;;
+            "$GITHUB_WORKSPACE/build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT") sudo rm -rf -- "$BUILD_DIR" ;;
             *) exit 1 ;;
           esac

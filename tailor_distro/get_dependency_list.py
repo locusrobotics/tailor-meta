@@ -19,6 +19,11 @@ def main():
     deps_path = pathlib.Path(f"{args.workspace}/dependencies")
     deps_path.mkdir(parents=True, exist_ok=True)
 
+    all_deps = {dep for distro, packages in graph.packages.items() for package in packages
+                for dep in graph.all_apt_depends(package, distro)}
+    (deps_path / f'all-{graph.os_version}-{graph.release_label}-dependencies.txt').write_text(
+        '\n'.join(sorted(all_deps)))
+
     for flavour, flavour_data in recipe["flavours"].items():
         apt_deps = set()
         for ros_dist, dist_data in flavour_data["distributions"].items():
