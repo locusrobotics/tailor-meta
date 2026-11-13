@@ -1,0 +1,114 @@
+FROM ubuntu:noble AS base
+
+LABEL tailor="environment"
+
+SHELL ["/bin/bash", "-c"]
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    PYTHONUNBUFFERED=1
+
+ARG AWS_ACCESS_KEY_ID
+ARG AWS_SECRET_ACCESS_KEY
+ARG AWS_REGION
+ENV AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+    AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
+ARG APT_REFRESH_KEY
+
+# Create auth config file for accessing s3 via apt
+RUN echo "AccessKeyId = $AWS_ACCESS_KEY_ID" | tee /etc/apt/s3auth.conf && \
+    echo "SecretAccessKey = $AWS_SECRET_ACCESS_KEY" | tee -a /etc/apt/s3auth.conf && \
+    echo "Token = ''" | tee -a /etc/apt/s3auth.conf && \
+    echo "Region = $AWS_REGION" | tee -a /etc/apt/s3auth.conf
+
+# Apt network failure handling
+RUN printf 'Acquire::http::Timeout "10";\nAcquire::https::Timeout "10";\nAcquire::Retries "3";\n' \
+      > /etc/apt/apt.conf.d/99-tailor-apt
+
+RUN echo "APT refresh key=${APT_REFRESH_KEY}"
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://us-east-1.ec2.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources && \
+    if ! timeout --kill-after=30s 3m \
+        apt-get update -o APT::Update::Error-Mode=any; then \
+        echo 'AWS Ubuntu mirror failed or timed out, switching to the default Ubuntu mirror' >&2; \
+        sed -i \
+            's|http://us-east-1.ec2.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|' \
+            /etc/apt/sources.list.d/ubuntu.sources; \
+        rm -rf /var/lib/apt/lists/*; \
+        apt-get update -o APT::Update::Error-Mode=any; \
+    fi && \
+    apt-get install --no-install-recommends -y \
+    locales \
+    curl \
+    gnupg \
+    sudo \
+    bzip2 \
+    apt-transport-s3 \
+    python3-dev \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    python3-venv \
+    python3-apt \
+    lld \
+    git \
+    ruby \
+    ruby-bundler \
+    vim \
+    xz-utils && \
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x142D5F1683E1528B" | gpg --dearmor -o /etc/apt/trusted.gpg.d/tailor.gpg && \
+    locale-gen en_US.UTF-8 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install aptly for managing mirror debs
+RUN curl -LO --output-dir /tmp https://github.com/aptly-dev/aptly/releases/download/v1.5.0/aptly_1.5.0_linux_amd64.tar.gz && \
+    tar xzf /tmp/aptly_1.5.0_linux_amd64.tar.gz --strip-components 1 -C /usr/local/bin
+
+FROM base AS debs3-build
+
+WORKDIR /opt
+# Install locusrobotics deb-s3 fork for managing bundle debs
+RUN git clone -b per-package https://github.com/locusrobotics/deb-s3.git && \
+    cd deb-s3 && \
+    bundle update --bundler && \
+    bundle install
+
+FROM base AS rosdep-tailor
+
+# Create venv
+RUN python3 -m venv --system-site-packages /opt/tailor_venv
+
+ENV VIRTUAL_ENV=/opt/tailor_venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+COPY tailor-distro tailor-distro
+RUN pip3 install -e tailor-distro
+
+FROM base AS dev
+
+ARG USER_NAME=tailor
+
+# Copy the deb-s3 binary
+COPY --from=debs3-build /opt/deb-s3 /opt/deb-s3
+COPY --from=debs3-build /var/lib/gems /var/lib/gems
+RUN ln -sf /opt/deb-s3/bin/deb-s3 /usr/local/bin/deb-s3
+
+# Copy venv
+COPY --from=rosdep-tailor /opt/tailor_venv /opt/tailor_venv
+COPY --from=rosdep-tailor /tailor-distro /tailor-distro
+ENV VIRTUAL_ENV=/opt/tailor_venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Inject the rosdep definitions from source
+COPY rosdistro/rosdep/rosdep.yaml /etc/ros/rosdep/rosdep.yaml
+RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]] ; then rosdep init ; fi && \
+     echo "yaml file:///etc/ros/rosdep/rosdep.yaml" > /etc/ros/rosdep/sources.list.d/10-tailor.list
+
+RUN usermod -md "/home/$USER_NAME" -s /bin/bash -l $USER_NAME ubuntu && \
+    groupmod -n $USER_NAME ubuntu && \
+    echo "$USER_NAME:$USER_NAME" | chpasswd && \
+    echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers
+
+USER $USER_NAME
+WORKDIR /home/$USER_NAME
+RUN rosdep update

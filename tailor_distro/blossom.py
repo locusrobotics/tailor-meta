@@ -1,0 +1,717 @@
+import apt_pkg
+import hashlib
+import yaml
+import logging
+import os
+import re
+
+from functools import lru_cache
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+from typing import (
+    List,
+    Dict,
+    Any,
+    NamedTuple,
+    Optional,
+    Tuple,
+    TypeVar
+)
+
+from catkin_pkg.topological_order import topological_order
+from catkin_pkg.package import Package
+from rosdep2.sources_list import SourcesListLoader
+from rosdep2.lookup import RosdepLookup, ResolutionError
+from rosdep2.rospkg_loader import DEFAULT_VIEW_KEY
+
+from .apt_tools import AptSandbox
+
+logger = logging.getLogger("blossom")
+
+PACKAGE_RELEASE_LABEL_ENV = "LOCUS_PACKAGE_RELEASE_LABEL"
+
+
+class ParsedAptVersion(NamedTuple):
+    epoch: int
+    version: str
+    build_date: str
+    sha: str
+    prefix: str  # "git" or "src"
+
+
+# Accepts both legacy +git<sha> and current +src<sha> version suffixes.
+_APT_VERSION_RE = re.compile(
+    r'^(?:(?P<epoch>\d+):)?(?P<version>.+)-(?P<date>\d{8}\.\d{6})\+(?P<prefix>git|src)(?P<sha>[0-9a-fA-F]+)$'
+)
+
+_HASH_SKIP = re.compile(
+    r'(\.pyc$|/__pycache__/|/\.git/|/build/|/devel/|/install/)'
+)
+
+
+def package_content_hash(package_dir: Path, apt_deps: frozenset = frozenset()) -> str:
+    """Stable SHA-256 of a package's source tree and resolved apt dep names; 7-char hex prefix returned."""
+    h = hashlib.sha256()
+    for entry in sorted(package_dir.rglob("*")):
+        if not entry.is_file():
+            continue
+        rel = entry.relative_to(package_dir).as_posix()
+        if _HASH_SKIP.search(rel):
+            continue
+        # hash path so renames are detected even with identical content
+        h.update(rel.encode())
+        h.update(entry.read_bytes())
+    for dep in sorted(apt_deps):
+        h.update(dep.encode())
+    return h.hexdigest()[:7]
+
+
+@lru_cache
+def warn_once(message: str):
+    logger.warning(message)
+
+@dataclass
+class GraphPackage:
+    name: str
+    version: str
+    sha: str
+    path: str
+    ros_version: str
+    apt_depends: List[str]
+    source_depends: List[str]
+    group_depends: List[str] = field(default_factory=list)
+    member_of_groups: List[str] = field(default_factory=list)
+    ros1_depends: List[str] = field(default_factory=list)
+    reverse_depends: List[str] = field(default_factory=list)
+    ros2_reverse_depends: List[str] = field(default_factory=list)
+    apt_candidate_version: str | None = None
+    description: str | None = None
+    maintainers: str | None = None
+
+    def __hash__(self):
+        return hash(self.path)
+
+    def debian_name(self, organization: str, release_label: str):
+        return f"{organization}-{release_label}-{self.ros_version}-{self.name.replace('_', '-')}"
+
+    def debian_version(self, build_date: str):
+        version = self.parse_apt_candidate_version()
+        # No APT version exists use package version as-is
+        if not version:
+            return f"{self.version}-{build_date}+src{self.sha}"
+
+        if self.was_downgraded():
+            epoch = version.epoch + 1
+            return f"{epoch}:{self.version}-{build_date}+src{self.sha}"
+        else:
+            if version.epoch:
+                return f"{version.epoch}:{self.version}-{build_date}+src{self.sha}"
+            else:
+                return f"{self.version}-{build_date}+src{self.sha}"
+
+    def run_depends(self, types: List[str] = ["apt", "source"]) -> List[str]:
+        depends = set()
+
+        if "apt" in types:
+            depends.update([dep.split(":")[1] for dep in self.apt_depends if dep.startswith("r:")])
+
+        if "source" in types:
+            depends.update([dep.split(":")[1] for dep in self.source_depends if dep.startswith("r:")])
+
+        return list(depends)
+
+    def build_depends(self, types: List[str] = ["apt", "source"]):
+        depends = set()
+
+        if "apt" in types:
+            depends.update([dep.split(":")[1] for dep in self.apt_depends if dep.startswith("b:")])
+
+        if "source" in types:
+            depends.update([dep.split(":")[1] for dep in self.source_depends if dep.startswith("b:")])
+
+        return list(depends)
+
+    def get_source_depends(self):
+        return [dep.split(":")[1] for dep in self.source_depends]
+
+    def get_apt_depends(self):
+        return [dep.split(":")[1] for dep in self.apt_depends]
+
+    def parse_apt_candidate_version(self) -> Optional[ParsedAptVersion]:
+        """Parse apt_candidate_version into its constituent parts.
+
+        Handles versions with or without a Debian epoch prefix, e.g.:
+          1.2.0-20260506.120000+gitabc1234
+          1:1.2.0-20260506.120000+gitabc1234
+        Returns None if apt_candidate_version is unset or unparseable.
+        """
+        if not self.apt_candidate_version:
+            return None
+        m = _APT_VERSION_RE.match(self.apt_candidate_version)
+        if not m:
+            return None
+        return ParsedAptVersion(
+            epoch=int(m.group('epoch') or 0),
+            version=m.group('version'),
+            build_date=m.group('date'),
+            sha=m.group('sha'),
+            prefix=m.group('prefix'),
+        )
+
+    def was_downgraded(self) -> bool:
+        """Check if the apt candidate version is older than the package version."""
+        parsed = self.parse_apt_candidate_version()
+        if not parsed:
+            return False
+        # Compare versions using Debian version comparison rules
+        cmp = apt_pkg.version_compare(parsed.version, self.version)
+        if cmp > 0:
+            warn_once(f"{self.name} has a newer version in APT ({parsed.version}) than the source package ({self.version}), which may indicate a downgrade.")
+            return True
+        return False
+
+    def __post_init__(self):
+        """
+        dpkg-deb is really picky about the formatting of the description field
+        so fix that now.
+       """
+        if self.description and not self.description.endswith("\n"):
+            self.description += "\n"
+
+T = TypeVar('T', bound='Graph')
+
+@dataclass
+class Graph:
+    """
+    Class to represent a graph of all packages. This has convenience functions
+    for generating a yaml representation of this graph, reading from an existing
+    yaml, and generating
+    """
+    os_name: str
+    os_version: str
+    release_label: str
+    build_date: str
+    apt_repo: str
+    packages: Dict[str, Dict[str, GraphPackage]] = field(default_factory=dict)
+    organization: str = "locusrobotics"
+    apt_configs: List[Path] = field(default_factory=list)
+    init_apt: bool = True
+    merge_dependencies: bool = True
+    package_release_label: str | None = None
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def add_package(self, package: Package, ros_distro: str, package_dir: Path, src_root: Path, conditions: Dict[str, Any] = {}):
+        if ros_distro not in self.packages:
+            self.packages[ros_distro] = {}
+
+        packages = self.packages[ros_distro]
+
+        if package.name in packages:
+            raise Exception(f"{package.name} already exists in the graph!")
+
+        depends = [
+            dep.name for dep in
+            package.exec_depends + package.run_depends
+            if dep.evaluate_condition(conditions) or dep.evaluated_condition
+        ]
+
+        build_depends = [
+            dep.name for dep in
+            package.build_depends + package.buildtool_depends +
+            package.build_export_depends +
+            package.buildtool_export_depends
+            if dep.evaluate_condition(conditions) or dep.evaluated_condition
+        ]
+
+        group_depends = [
+            dep.name for dep in
+            package.group_depends
+            if dep.evaluate_condition(conditions) or dep.evaluated_condition
+        ]
+
+        member_of_groups = [
+            dep.name for dep in
+            package.member_of_groups
+            if dep.evaluate_condition(conditions) or dep.evaluated_condition
+        ]
+
+        apt_deps = set()
+        source_deps = set()
+        # Only for ROS2 packages that have ros1 dependencies
+        # TODO: Support exists here but its not being used currently as far as triggering
+        # a ROS1 package to build if the ROS2 package depends on it.
+        ros1_deps = set()
+
+        for prefix, dep in [("r:", dep) for dep in depends] + [("b:", dep) for dep in build_depends]:
+            try:
+                definition = self._rosdep_view.lookup(dep)
+
+                rules = definition.get_rule_for_platform(
+                    os_name=self.os_name,
+                    os_version=self.os_version,
+                    installer_keys=["apt"],
+                    default_installer_key="apt"
+                )
+
+                # Special case here: We have packages which are source packages
+                # but also have entries in rosdep.yaml. One example of this is
+                # xmlrpcpp which is a ROS1 package but ros1_bridge requires it
+                # therefore it needs an entry (empty array) in rosdep.
+
+                if len(rules[1]) == 0 and dep in packages:
+                    warn_once(f"Dependency {dep} has empty set of rules, but exists"
+                                " as a source package")
+                    source_deps.add(f"{prefix}{dep}")
+                    continue
+
+                if dep in packages:
+                    warn_once(f"Dependency {dep} was found both as a rosdep and as a source "
+                                "package! Adding as a system package only")
+
+                for pkg_apt in rules[1]:
+                    # TODO: Sometimes rosdep returns strange package names which
+                    #       don't appear to exist.
+                    #       e.g. libboost-filesystem resolves to libboost-filesystem1.74.0
+                    apt_deps.add(f"{prefix}{pkg_apt}")
+
+            except (KeyError, ResolutionError):
+                # rosdep didn't have an entry, assume a source dependency.
+                source_deps.add(f"{prefix}{dep}")
+
+        for export in package.exports:
+            if export.tagname == "ros1_depend":
+                ros1_deps.add(export.content)
+
+        sha = package_content_hash(package_dir, frozenset(apt_deps))
+
+        pkg = GraphPackage(
+            package.name,
+            package.version,
+            sha,
+            str(package_dir.relative_to(src_root)),
+            ros_distro,
+            list(apt_deps),
+            list(source_deps),
+            group_depends=list(group_depends),
+            member_of_groups=list(member_of_groups),
+            ros1_depends=list(ros1_deps),
+            description=package.description,
+            maintainers=" ".join([str(p) for p in package.maintainers]),
+        )
+
+        # Check if there is an APT candidate for the source package
+        pkg.apt_candidate_version = self._get_apt_candidate_version(pkg)
+
+        self.packages[ros_distro][package.name] = pkg
+
+        # Calculate reverse depends afterwards (in finalize())
+
+    def _get_apt_candidate_version(self, package: GraphPackage) -> str | None:
+        if not self.init_apt:
+            return None
+
+        deb_name = package.debian_name(self.organization, self.package_name_release_label)
+
+        try:
+            deb_pkg = self._apt_cache[deb_name]
+        except KeyError:
+            return None
+
+        versions = []
+
+        for ver in deb_pkg.versions:
+            suites = {origin.archive for origin in ver.origins if origin.archive}
+            for suite in suites:
+                if suite != self.os_version:
+                    continue
+
+                versions.append(ver)
+
+        if len(versions) == 0:
+            return None
+
+        # Use Debian version comparison to find the max
+        best = versions[0]
+        for v in versions[1:]:
+            # > 0 means v is newer than best
+            if apt_pkg.version_compare(v.version, best.version) > 0:
+                best = v
+
+        return best.version
+
+    def finalize(self):
+        """
+        After all packages are added iterate though them and add reverse dependencies for easier lookup later on.
+        The group/member_of resolution is also done here.
+
+        TODO: This could likely be optimized to avoid multiple iterations over the packages. But it
+        currently runs decently fast so we haven't optimized it yet.
+        """
+
+        for distro, packages in self.packages.items():
+            groups: Dict[str, List[str]] = {}
+
+            # First pass, initialize groups, and add dependencies accordingly
+            for name, package in packages.items():
+                # Add to list of groups
+                for group in package.member_of_groups:
+                    if group in groups:
+                        groups[group].append(name)
+                    else:
+                        groups[group] = [name]
+
+            # All groups should have been identified and packages included, now re-iterate the
+            # packages and append any additional dependencies.
+            for name, package in packages.items():
+                for group in package.group_depends:
+                    if group in groups:
+                        src_deps = [f"r:{dep}" for dep in groups[group] if dep in packages]
+                        if src_deps:
+                            package.source_depends.extend(src_deps)
+                        apt_deps = [f"r:{dep}" for dep in groups[group] if dep not in packages]
+                        if apt_deps:
+                            package.apt_depends.extend(apt_deps)
+                    else:
+                        warn_once(f"Group dependency '{group}' not found for package {name}")
+
+            # Now go through yet again to add in reverse dependencies
+            for name, package in packages.items():
+                for depend in package.get_source_depends():
+                    if depend not in packages:
+                        raise Exception(f"Package {depend} was marked as a source dependency to {name}, but it was not found")
+
+                    if name not in packages[depend].reverse_depends:
+                        self.packages[distro][depend].reverse_depends.append(name)
+                for depend in package.ros1_depends:
+                    if depend not in self.packages["ros1"]:
+                        raise Exception(f"Package {depend} was marked as a ROS1 dependency to {name}, but it was not found")
+
+                    if name not in self.packages["ros1"][depend].ros2_reverse_depends:
+                        self.packages["ros1"][depend].ros2_reverse_depends.append(name)
+
+    def _recurse_depends(self, depend: str, ros_distro: str, visited=None, rdeps=False):
+        dep_type = "reverse_depends" if rdeps else "source_depends"
+
+        if visited is None:
+            visited = set()
+
+        if depend in visited:
+            return set()
+
+        visited.add(depend)
+        d = set()
+
+        if dep_type == "source_depends":
+            dep_list = self.packages[ros_distro][depend].get_source_depends()
+        elif dep_type == "reverse_depends":
+            dep_list = self.packages[ros_distro][depend].reverse_depends
+        else:
+            raise Exception(f"Unknown dep_type {dep_type}")
+
+        for dep in dep_list:
+            d.add(dep)
+            d.update(self._recurse_depends(dep, ros_distro, visited, rdeps=rdeps))
+
+        return d
+
+    @lru_cache
+    def all_source_depends(self, package: str, ros_distro: str) -> List[str]:
+        deps = self._recurse_depends(package, ros_distro, rdeps=False)
+
+        return list(deps)
+
+    @lru_cache
+    def all_source_rdepends(self, package: str, ros_distro: str) -> List[str]:
+        rdeps = self._recurse_depends(package, ros_distro, rdeps=True)
+
+        return list(rdeps)
+
+    @lru_cache
+    def all_apt_depends(self, package: str, ros_distro: str) -> List[str]:
+        # First get all source depends, then get the apt depends for all of those packages.
+        source_depends = self._recurse_depends(package, ros_distro)
+
+        apt_deps = set()
+
+        apt_deps.update(self.packages[ros_distro][package].get_apt_depends())
+
+        for dep in source_depends:
+            apt_deps.update(self.packages[ros_distro][dep].get_apt_depends())
+
+        return list(apt_deps)
+
+    def _any_ros1_dep_needs_rebuild(self, package: GraphPackage) -> bool:
+        if "ros1" not in self.packages:
+            return False
+        return any(
+            self.package_needs_rebuild(self.packages["ros1"][dep])
+            for dep in package.ros1_depends
+            if dep in self.packages["ros1"]
+        )
+
+    @lru_cache
+    def package_needs_rebuild(self, package: GraphPackage) -> bool:
+        # Check if there is an APT candidate for the source package. If not we need to build it.
+        apt_version = package.apt_candidate_version
+        if not apt_version:
+            return True
+
+        # If the content hash matches no need to rebuild
+        parsed = package.parse_apt_candidate_version()
+        if parsed is None:
+            return True
+
+        if parsed.sha == package.sha:
+            return False
+
+        warn_once(f"Previously built {package.name} hash {parsed.sha} does not match {package.sha}, need to rebuild")
+
+        return True
+
+    def build_list(
+        self,
+        ros_distro: str,
+        root_packages: List[str] = [],
+        skip_rdeps: bool = False,
+        rebuild_all: bool = False,
+        force_packages: List[str] = [],
+    ) -> Tuple[Dict[str, GraphPackage], Dict[str, GraphPackage]]:
+        """
+        From an initial list of packages collect all dependent packages that
+        don't already have a build candidate. If a package needs to be rebuilt
+        this will also trigger any reverse dependencies to also be added.
+
+        force_packages names are always rebuilt regardless of SHA/apt state,
+        and their reverse dependencies cascade like any other rebuilt package.
+
+        Returns a tuple:
+          - The first element is a dictionary of packages which need to be built
+          - The second element is a dictionary of packages which already exist in APT
+        """
+        build_list: Dict[str, GraphPackage] = {}
+        download_list: Dict[str, GraphPackage] = {}
+        force_packages_set = frozenset(force_packages)
+
+        print(f"Building list for {ros_distro} {root_packages}")
+
+        @lru_cache
+        def add_rdeps(name: str):
+            if name not in root_packages:
+                return
+
+            rdeps = self.all_source_rdepends(name, ros_distro)
+
+            # If this package is being rebuilt all reverse depends need to
+            # also be rebuilt.
+            for r in rdeps:
+                if r not in root_packages:
+                    continue
+                if r in build_list:
+                    continue
+                build_list[r] = self.packages[ros_distro][r]
+                add_rdeps(r)  # cascade: rdeps of rdeps also need rebuild
+
+        if root_packages == []:
+            # No packages specified, rebuild all
+            root_packages = list(self.packages[ros_distro].keys())
+        else:
+            # Specific list, add all dependencies of these. This is mostly for
+            # testing to build a subset of packages, rather than all.
+            for name in root_packages.copy():
+                #print(f"getting all source depends for {name}")
+                depends = self.all_source_depends(name, ros_distro)
+                root_packages.extend(depends)
+
+                root_packages = list(set(root_packages))
+
+        print(f"Generating list of packages to build... {root_packages}")
+
+        def needs_rebuild(pkg: GraphPackage) -> bool:
+            return (
+                self.package_needs_rebuild(pkg)
+                or rebuild_all
+                or pkg.name in force_packages_set
+                or self._any_ros1_dep_needs_rebuild(pkg)
+            )
+
+        for name in root_packages:
+            package = self.packages[ros_distro][name]
+
+            # Top level packages. If any need to be rebuilt also add rdeps
+            if needs_rebuild(package):
+                build_list[name] = package
+
+                if not skip_rdeps:
+                    add_rdeps(package.name)
+
+            # Iterate the entire dependency tree, including nested dependencies
+            for dep in self.all_source_depends(name, ros_distro):
+                dep_pkg = self.packages[ros_distro][dep]
+                if needs_rebuild(dep_pkg):
+                    build_list[dep] = self.packages[ros_distro][dep]
+
+                    if not skip_rdeps:
+                        add_rdeps(dep)
+
+        # Everything not flagged for rebuild goes to download_list.
+        # Done as a second pass so add_rdeps promotions are fully resolved first.
+        for name in root_packages:
+            if name not in build_list:
+                print(f"{name} does not need to be rebuilt")
+                download_list[name] = self.packages[ros_distro][name]
+
+        return build_list, download_list
+
+    def __post_init__(self):
+        if self.package_release_label is None:
+            self.package_release_label = os.environ.get(PACKAGE_RELEASE_LABEL_ENV, self.release_label)
+
+        if self.package_release_label != self.release_label:
+            warn_once(
+                "Package naming release label override active: "
+                f"release_label={self.release_label}, package_release_label={self.package_release_label}"
+            )
+
+        # For loading graphs from yaml we don't have all the info we need to initialize the
+        # apt sandbox. Its only when the graph is created where we need to utilize the apt
+        # sandbox. From that point on a graph should contain the candidate versions for the
+        # packages if they exist.
+        if self.init_apt:
+            sources = [
+                f"deb [arch=amd64 trusted=yes] {self.apt_repo}/{self.release_label}/ubuntu {self.os_version} main",
+                f"deb [arch=amd64 trusted=yes] {self.apt_repo}/{self.release_label}/ubuntu {self.os_version}-mirror {self.os_version}"
+            ]
+
+            self._apt_sandbox = AptSandbox(sources, local_configs=self.apt_configs)
+            self._apt_cache = self._apt_sandbox.cache
+
+        sources_loader = SourcesListLoader.create_default()
+        self._rosdep_lookup = RosdepLookup.create_from_rospkg(
+            sources_loader=sources_loader
+        )
+        self._rosdep_view = self._rosdep_lookup.get_rosdep_view(DEFAULT_VIEW_KEY)
+
+    def write_yaml(self, path: Path):
+        if not path.exists():
+            path.mkdir(exist_ok=True)
+
+        filename = path / Path(self.name + ".yaml")
+
+        data = asdict(self)
+        # YAML safe_dump cannot represent pathlib.Path directly.
+        data["apt_configs"] = [str(p) for p in data.get("apt_configs", [])]
+
+        with open(filename, "w") as f:
+            yaml.safe_dump(data, f)
+
+        print(f"Wrote {filename}")
+
+    @classmethod
+    def from_yaml(cls, file: Path) -> T:
+        """
+        Read a graph yaml file and return a Graph object.
+        """
+        data = yaml.safe_load(file.read_text())
+
+        packages: Dict[str, Dict[str, GraphPackage]] = {}
+
+        for ros_distro, distro_pkgs in data["packages"].items():
+            if ros_distro not in packages:
+                packages[ros_distro] = {}
+
+            for name, pkg_data in distro_pkgs.items():
+                packages[ros_distro][name] = GraphPackage(**pkg_data)
+
+        data.pop("packages")
+        data.pop("init_apt")
+
+        graph = Graph(**data, init_apt=False, packages=packages)
+        graph.finalize()
+
+        return graph
+
+
+    @classmethod
+    def from_recipe(
+        cls,
+        recipe: Dict,
+        workspace: Path,
+        release_label: str,
+        build_date: str,
+        apt_configs: List[Path] = [],
+        init_apt: bool = True,
+        package_release_label: str | None = None,
+    ) -> T:
+        """
+        Create a Graph object from a recipe.
+        """
+        graphs = []
+
+        apt_repo = recipe["common"]["apt_repo"]
+
+        for os_name, versions in recipe["os"].items():
+            for os_version in versions:
+                graph = Graph(
+                    os_name,
+                    os_version,
+                    release_label,
+                    build_date,
+                    apt_repo,
+                    apt_configs=apt_configs,
+                    init_apt=init_apt,
+                    package_release_label=package_release_label,
+                )
+
+                if init_apt:
+                    print("Checking existing meta packages in apt")
+                    # Check each flavour and ensure there is no existing meta package
+                    # with the same date stamp
+                    for flavour in recipe["flavours"].keys():
+                        deb_name = f"{graph.organization}-{flavour}-{graph.package_name_release_label}"
+                        deb_version = f"{graph.build_date}{graph.os_version}"
+
+                        try:
+                            bundle = graph._apt_cache[deb_name]
+                        except KeyError:
+                            continue
+
+                        for ver in bundle.versions:
+                            suites = {origin.archive for origin in ver.origins if origin.archive}
+                            for suite in suites:
+                                if suite != graph.os_version:
+                                     continue
+
+                            if deb_version == ver.version:
+                                print(f"Found existing meta package: {deb_name} = {ver.version}")
+                                raise RuntimeError(f"Meta package already exists: {deb_name} = {ver.version}")
+
+                for ros_dist, data in recipe["common"]["distributions"].items():
+                    print("Building package data for ROS distribution", ros_dist)
+                    src_root = workspace / Path("src") / Path(ros_dist)
+
+                    for path, package in topological_order(src_root):
+                        package_dir = src_root / Path(path)
+
+                        graph.add_package(package, ros_dist, package_dir, src_root, conditions=recipe["common"]["distributions"][ros_dist]["env"])
+
+                # This adds any reverse depends for easier lookup later on.
+                graph.finalize()
+
+                graphs.append(graph)
+
+        return graphs
+
+    @property
+    def package_name_release_label(self) -> str:
+        assert self.package_release_label is not None
+        return self.package_release_label
+
+    @property
+    def name(self):
+        return f"{self.os_name}-{self.os_version}-graph"
+
+    @property
+    def debian_info(self):
+        return self.organization, self.package_name_release_label

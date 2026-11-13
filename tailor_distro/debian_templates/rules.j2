@@ -1,0 +1,126 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --parallel
+
+export PYTHONUNBUFFERED=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPYCACHEPREFIX="$HOME/.cache/cpython/"
+export RELEASE_TRACK={{ release_track }}
+export RELEASE_LABEL={{ release_label }}
+export RELEASE_STAMP={{ debian_version }}
+export RELEASE_FLAVOUR={{ flavour }}
+export RELEASE_VERSION={{ release_label }}-{{ debian_version }}
+export CCACHE_BASEDIR=$(CURDIR)
+export FORCE_PKG_REBUILD_ROS1={{ force_package_rebuild_ros1 }}
+export FORCE_PKG_REBUILD_ROS2={{ force_package_rebuild_ros2 }}
+
+SHELL=bash
+ABSOLUTE_PATH=/tmp/workspace
+INSTALL_DIR=$(ABSOLUTE_PATH)/debian/tmp/opt/{{ organization }}/{{ release_label }}/{{ flavour }}
+
+# Do this oneshot as part of override_dh_auto_install
+override_dh_clean:
+override_dh_prep:
+override_dh_auto_clean:
+override_dh_auto_configure:
+override_dh_auto_build:
+	mkdir -p $(INSTALL_DIR)
+
+{% for distro_name, distro_options in distributions.items() if distro_options['root_packages'] is defined %}
+	{% for vendor_environment in vendor_environments | default([])  %}
+		test -e {{ vendor_environment }} && source {{ vendor_environment }} || true && \
+	{% endfor %}
+	{% for key, value in distro_options['env'].items() %}
+	export {{ key }}={{ value }} && \
+	{% endfor %}
+	export ROS_DISTRO_OVERRIDE={{ organization }}-{{ release_label }}-{{ flavour }} && \
+	env && \
+	if [ "{{ distro_name }}" = "ros1" ]; then \
+  		FORCE_PKG_REBUILD="$(FORCE_PKG_REBUILD_ROS1)"; \
+		TARGET_ROS_VERSION=1; \
+	elif [ "{{ distro_name }}" = "ros2" ]; then \
+  		FORCE_PKG_REBUILD="$(FORCE_PKG_REBUILD_ROS2)"; \
+		TARGET_ROS_VERSION=2; \
+	else \
+  		FORCE_PKG_REBUILD=""; \
+		TARGET_ROS_VERSION=""; \
+	fi; \
+	if [ -n "$$FORCE_PKG_REBUILD" ]; then \
+	  echo "Requested force-rebuild: $$FORCE_PKG_REBUILD"; \
+	  for pkg in $$FORCE_PKG_REBUILD; do \
+	    if colcon list --names-only --base-paths src/{{ distro_name }} 2>/dev/null | grep -qx "$$pkg"; then \
+		  echo "Colcon clean $$pkg for {{ distro_name }}"; \
+	      colcon clean packages -y \
+		  	--base-paths src/{{ distro_name }} \
+	        --packages-select "$$pkg" \
+	        --build-base $(ABSOLUTE_PATH)/debian/tmp/build/{{ distro_name }} || true; \
+	    else \
+	      echo "Package $$pkg not present for {{ distro_name }}"; \
+	    fi; \
+	  done; \
+	fi; \
+	{% for underlay_name in distro_options['underlays'] | default([]) %}
+		{% if distributions[underlay_name]['root_packages'] is defined %}
+			source $(INSTALL_DIR)/{{ underlay_name }}/setup.bash && \
+		{% endif %}
+	{% endfor %}
+	export ROS_VERSION=$$TARGET_ROS_VERSION; \
+	TERM=dumb colcon build \
+		--parallel-workers 8 \
+		--packages-skip-cache-valid \
+		--packages-up-to {{ distro_options['root_packages'] | join(' ') }} \
+		--base-paths src/{{ distro_name }} \
+		--build-base $(ABSOLUTE_PATH)/debian/tmp/build/{{ distro_name }} \
+		--install-base $(INSTALL_DIR)/{{ distro_name }} \
+		--cmake-args \
+			-DCMAKE_CXX_FLAGS='{{ cxx_flags | join(' ') }}' \
+			-DCMAKE_CXX_STANDARD='{{ cxx_standard }}' \
+			-DCMAKE_CXX_STANDARD_REQUIRED='ON' \
+			-DCMAKE_CXX_EXTENSIONS='ON' \
+			-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+			-DPYTHON_EXECUTABLE=/usr/bin/python{{ python_version }} \
+		--ament-cmake-args \
+			-DBUILD_TESTING=OFF \
+		--catkin-cmake-args \
+			-DCATKIN_SKIP_TESTING=1 \
+		--merge-install \
+		--catkin-skip-building-tests \
+		--event-handlers console_cohesion+
+
+	{% if distro_options['compat_catkin_tools'] | default(False) == True %}
+		# Workaround colcon not creating env.sh https://github.com/colcon/colcon-ros/issues/16
+		cp debian/compat_catkin_tools/env.sh $(INSTALL_DIR)/{{ distro_name }}/env.sh
+		cp debian/compat_catkin_tools/_setup_util.py $(INSTALL_DIR)/{{ distro_name }}/_setup_util.py
+	{% endif %}
+{% endfor %}
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+
+# TODO(pbovbel) create separate debug packages
+override_dh_strip:
+
+# We don't really care about calculating shlibdeps
+override_dh_shlibdeps:
+
+override_dh_install:
+	dh_install --sourcedir=$(ABSOLUTE_PATH)/debian/tmp
+
+override_dh_installdeb:
+	# Fixup absolute and relative paths for installation target into /opt, don't touch .so libs
+	find . -type f -exec grep -I -q . {} \; -print0 | xargs -0 sed -ri "s|($(ABSOLUTE_PATH)/)?debian/tmp/opt|/opt|g" && \
+	find . -name '*.pyc' -delete && \
+	find debian/ -type f \
+	! -name '*.so' ! -name '*.so.*' \
+	-exec grep -I -q . {} \; -print0 | xargs -0 sed -ri "s|/opt/tailor_venv/bin/python|/usr/bin/python3|g" && \
+	dh_installdeb
+
+override_dh_builddeb:
+	. /etc/os-release 2>/dev/null || true; \
+	if [ "$$UBUNTU_CODENAME" = noble ]; then \
+		dh_builddeb -- -Zzstd --threads-max=32; \
+	else \
+		dh_builddeb -- -Zzstd; \
+	fi

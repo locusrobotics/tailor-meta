@@ -1,0 +1,23 @@
+---
+- name: Provision a single robot image
+  hosts: default
+  tasks:
+  - name: Install desired packages
+    apt:
+      pkg:
+        - vim
+      state: present
+      update_cache: yes
+    become: true
+
+  - name: Install necessary packages
+    apt:
+      pkg:
+        - python3-rosdep
+        - ca-certificates
+      state: present
+      update_cache: yes
+    become: true
+
+  - name: Run rosdep init
+    command: rosdep update
