@@ -1,0 +1,173 @@
+name: Central source CI
+on:
+  workflow_call:
+    inputs:
+      tailor_meta:
+        type: string
+        required: true
+      configuration_ref:
+        type: string
+        required: true
+      source_repositories:
+        description: JSON subset of manifest-opted repositories; empty selects all opted-in sources
+        type: string
+        default: '[]'
+      dry_run:
+        type: boolean
+        default: true
+      retry_failed:
+        type: boolean
+        default: false
+      allow_public_inputs:
+        description: Explicit approval to expose prepared inputs and test logs in a public caller repository
+        type: boolean
+        default: false
+    secrets:
+      SOURCE_CI_GITHUB_TOKEN:
+        description: Central source read and commit-status write token; never passed to workers
+        required: true
+permissions:
+  contents: read
+jobs:
+  discover:
+    if: github.event_name != 'pull_request'
+    runs-on: [self-hosted, linux, x64, tailor-source-control]
+    timeout-minutes: 20
+    concurrency:
+      group: source-ci-control-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      matrix: ${{ steps.poll.outputs.matrix }}
+      has_requests: ${{ steps.poll.outputs.has_requests }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta }}
+          path: tailor-meta
+          persist-credentials: false
+      - uses: ./tailor-meta/.github/actions/setup
+      - name: Discover and claim revisions
+        id: poll
+        env:
+          SOURCE_CI_GITHUB_TOKEN: ${{ secrets.SOURCE_CI_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_CI_STATE_URI: ${{ vars.SOURCE_CI_STATE_URI }}
+          CONFIGURATION_REF: ${{ inputs.configuration_ref }}
+          ALLOWLIST: ${{ inputs.source_repositories }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          RETRY_FAILED: ${{ inputs.retry_failed }}
+          PUBLIC_INPUTS: ${{ inputs.allow_public_inputs }}
+        run: |
+          args=()
+          [[ "$DRY_RUN" != true ]] || args+=(--dry-run)
+          [[ "$RETRY_FAILED" != true ]] || args+=(--retry-failed)
+          [[ "$PUBLIC_INPUTS" != true ]] || args+=(--allow-public-inputs)
+          python -m tailor_meta.source_ci.cli poll --configuration-ref "$CONFIGURATION_REF" --allowlist "$ALLOWLIST" "${args[@]}"
+  prepare:
+    needs: discover
+    if: needs.discover.outputs.has_requests == 'true'
+    runs-on: [self-hosted, linux, x64, tailor-source-control]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta }}
+          path: tailor-meta
+          persist-credentials: false
+      - uses: ./tailor-meta/.github/actions/setup
+      - name: Prepare without executing source or starting images
+        env:
+          SOURCE_CI_GITHUB_TOKEN: ${{ secrets.SOURCE_CI_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_CI_STATE_URI: ${{ vars.SOURCE_CI_STATE_URI }}
+          REQUEST_ID: ${{ matrix.id }}
+          PUBLIC_INPUTS: ${{ inputs.allow_public_inputs }}
+        run: |
+          args=()
+          [[ "$PUBLIC_INPUTS" != true ]] || args+=(--allow-public-inputs)
+          python -m tailor_meta.source_ci.cli prepare --request-id "$REQUEST_ID" --output "$RUNNER_TEMP/source-input" "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-input-${{ matrix.id }}
+          path: ${{ runner.temp }}/source-input/
+          compression-level: 0
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+      - name: Remove prepared inputs
+        if: always()
+        env:
+          REQUEST_ID: ${{ matrix.id }}
+        run: |
+          rm -rf -- "$RUNNER_TEMP/source-input"
+          rm -rf -- "$RUNNER_TEMP/source-ci-auth-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$REQUEST_ID"
+  test:
+    name: source-test:${{ matrix.id }}
+    needs: [discover, prepare]
+    if: always() && needs.discover.result == 'success' && needs.discover.outputs.has_requests == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta }}
+          path: tailor-meta
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: source-input-${{ matrix.id }}
+          path: ${{ runner.temp }}/source-input
+      - run: pip install PyYAML==6.0.2
+      - name: Isolated offline build and test (no AWS or fleet credentials)
+        env:
+          PYTHONPATH: tailor-meta
+          REQUEST_ID: ${{ matrix.id }}
+        run: |
+          python -m tailor_meta.source_ci.worker --bundle "$RUNNER_TEMP/source-input" --request-id "$REQUEST_ID" \
+            --results "$RUNNER_TEMP/source-results" --reports "$RUNNER_TEMP/source-reports"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-results-${{ matrix.id }}
+          path: ${{ runner.temp }}/source-reports/
+          retention-days: 7
+  report:
+    needs: [discover, prepare, test]
+    if: always() && needs.discover.outputs.has_requests == 'true'
+    runs-on: [self-hosted, linux, x64, tailor-source-control]
+    timeout-minutes: 15
+    concurrency:
+      group: source-ci-control-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta }}
+          path: tailor-meta
+          persist-credentials: false
+      - uses: ./tailor-meta/.github/actions/setup
+      - name: Report authoritative Actions job conclusions
+        env:
+          SOURCE_CI_GITHUB_TOKEN: ${{ secrets.SOURCE_CI_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_CI_STATE_URI: ${{ vars.SOURCE_CI_STATE_URI }}
+        run: python -m tailor_meta.source_ci.cli report

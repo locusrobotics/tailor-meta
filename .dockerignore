@@ -5,3 +5,9 @@
 .pytest_cache
 build
 dist
+output
+source-worker-smoke
+prepared
+source-input
+source-results
+source-reports

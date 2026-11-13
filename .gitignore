@@ -8,3 +8,9 @@ __pycache__/
 .venv/
 build/
 dist/
+output/
+source-worker-smoke/
+prepared/
+source-input/
+source-results/
+source-reports/

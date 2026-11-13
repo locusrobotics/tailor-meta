@@ -18,11 +18,11 @@ rosdistro configuration change
        plan + pull immutable digests
        fetch → mirror → graph → build every OS → publish → images
 
-source repositories → source.yaml
+configuration repositories → source-poll.yaml (central polling source CI)
 source stub management → maintain-sources.yaml
 ```
 
-These are the five workflows in `.github/workflows/`. No standalone smoke
+No standalone smoke
 workflow or check-to-Python workflow chain remains. CI can also be called by
 toydistro's hosted pilot. Source maintenance is independent of build credentials.
 
@@ -167,11 +167,31 @@ configured ECR destinations; GHCR is only for buildfarm tooling.
 
 ## Maintenance and cutover
 
+### Central source CI
+
+The new source-CI execution path is `source-poll.yaml`, called from the
+configuration repository. AWS/fleet credentials stay on trusted control runners;
+tests run offline on separate disposable hosted workers. Artifacts attach to the
+calling toydistro/rosdistro repository. Source repositories need neither secrets
+nor workflow hooks, only their manifest `test_commits` opt-in.
+
+See [doc/central-source-ci.md](doc/central-source-ci.md) for runner/IAM setup,
+the caller-owned state ledger, public-artifact privacy gate, pilot limitations,
+and the later GitHub App migration. Scheduling is disabled until explicitly
+enabled in the caller repository.
+
+### Legacy source-stub maintenance
+
 `maintain-sources.yaml` previews by default; `apply: true` directly updates
 configured source branches. `source.test_commits` selects repositories, not distro
 contents. Jobs aggregate by repository/branch to avoid ROS distro collisions.
 Source CI must use its own read-only credentials, not publication/maintenance
 identities. Fork private tests require a reviewed manual dispatch on a hosted runner.
+
+This is retained for compatibility, not the new testing mechanism. Do not
+provision source-repository AWS/fleet secrets or deploy new secret-inheriting
+source stubs for central polling. Migrate existing hooks deliberately rather
+than deleting unrelated CI.
 
 For the toydistro pilot, an explicit manual dispatch may set `allow_feature: true`
 to write a source stub targeting the published feature label. The reusable job

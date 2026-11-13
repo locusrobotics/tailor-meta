@@ -300,6 +300,8 @@ class Build:
                  '--recursive', '--exclude', '*', '--include', '*_repositories_data.jsonl')
         self.run('aws', 's3', 'sync', 'workspace/dependencies', f'{self.apt}/{self.label}/dependencies',
                  '--exclude', '*', '--include', '*.txt')
+        self.run('aws', 's3', 'sync', 'workspace/graphs', f'{self.apt}/{self.label}/graphs/{self.timestamp}',
+                 '--exclude', '*', '--include', '*.yaml')
         if self.config['kind'] != 'final':
             self.container(self.image('tools'), 's3_directory_cleanup', '--release-label', self.label,
                            '--apt-repo', self.apt.removeprefix('s3://'), *self.retention(), aws=True)
@@ -323,6 +325,19 @@ class Build:
             return
         self.container(self.image('imager'), 'python3', '-m', 'tailor_meta.build_images',
                        '--plan', '/work/build-plan.json', privileged=True, apt=True, aws=True, vault=True)
+        # Source CI must not combine an old build plan with a newly moved test
+        # image tag while a later feature build is publishing.
+        import boto3
+        registry = self.config['common']['docker_registry'].removeprefix('https://')
+        endpoint, repository = registry.split('/', 1)
+        client = boto3.client('ecr', region_name=self.config['common'].get('apt_region', 'us-east-1'))
+        self.config['test_images'] = {}
+        for target in self.config['images']:
+            if target['name'] != 'test':
+                continue
+            image = client.describe_images(registryId=endpoint.split('.')[0], repositoryName=repository,
+                                           imageIds=[{'imageTag': f'tailor-image-test-{target["os"]}-{self.label}'}])
+            self.config['test_images'][target['os']] = registry + '@' + image['imageDetails'][0]['imageDigest']
         self.invalidate(f'/{self.label}/images/index')
 
 

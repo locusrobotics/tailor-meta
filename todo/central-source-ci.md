@@ -2,6 +2,11 @@
 
 ## Decision
 
+Implementation is now in `tailor_meta/source_ci/` and the reusable
+`.github/workflows/source-poll.yaml`. See `doc/central-source-ci.md` for the
+operator setup and explicit pilot limitations. Operational acceptance below is
+not complete until the runner/state/environment are configured and exercised.
+
 Replace secret-bearing source-repository workflow callers with centrally
 executed source CI. Start with polling and `locusrobotics/test_meta`; later
 replace polling with GitHub App events without changing the execution boundary.
@@ -29,8 +34,9 @@ future GitHub App event
   → same validated request and execution path
 ```
 
-Use tailor-meta as the initial central execution repository. No source CI stub
-or webhook is required for polling. Keep existing source-workflow generation
+Keep implementation in tailor-meta, but execute its reusable workflow in the
+calling configuration repository so all artifacts attach to toydistro/rosdistro.
+No source CI stub or webhook is required for polling. Keep existing source-workflow generation
 separate during transition; do not install secret-inheriting hooks as the new
 testing mechanism.
 
@@ -38,7 +44,7 @@ testing mechanism.
 
 ### Trusted discovery/preparation/reporting
 
-- [ ] Restrict the central runner/group to the central CI repository; do not
+- [ ] Restrict the central runner/group to trusted configuration caller repositories; do not
       expose it to arbitrary source-repository workflows.
 - [ ] Give an EC2 runner a scoped AWS read instance role instead of static keys.
 - [ ] Store a central PAT in Actions secrets or a secret manager, with read access
@@ -73,11 +79,11 @@ expose the host; workers must not reach a credentialed host.
       explicit manual dispatch. Account for GitHub schedule delays.
 - [ ] Batch/stagger discovery, use conditional requests where appropriate, and
       respect API limits/backoff as the repository fleet grows.
-- [ ] Define a stable request identity including repository, exact source SHA,
+- [x] Define a stable request identity including repository, exact source SHA,
       ROS distribution, configuration SHA, and published environment identity.
-- [ ] Persist deduplication and queued/running/completed state outside ephemeral
+- [x] Persist deduplication and queued/running/completed state outside ephemeral
       runner workspaces.
-- [ ] Validate repository/branch opt-in and derive images/commands from trusted
+- [x] Validate repository/branch opt-in and derive images/commands from trusted
       configuration; reject arbitrary repositories, URLs, commands, or credential
       requests supplied through dispatch inputs.
 - [ ] Define policy for PR merge versus head revisions and tests targeting
@@ -89,7 +95,7 @@ expose the host; workers must not reach a credentialed host.
 - [ ] Download the exact source SHA being tested using central source access.
 - [ ] Resolve immutable test-image digests and published dependency snapshots.
 - [ ] Download required private images/packages using the central AWS read role.
-- [ ] Produce a credential-free input bundle containing source, dependency
+- [x] Produce a credential-free input bundle containing source, dependency
       artifacts, graph/configuration metadata, and checksums.
 - [ ] Choose transfer/storage and worker access mechanisms that do not require
       fleet-wide credentials on workers. Avoid publicly exposing private inputs.
@@ -101,7 +107,7 @@ expose the host; workers must not reach a credentialed host.
 
 ## Phase 3: isolated execution and reporting
 
-- [ ] Implement one central source-test workflow with trusted preparation,
+- [x] Implement one central source-test workflow with trusted preparation,
       isolated execution, and trusted reporting jobs.
 - [ ] Run dependency checks, colcon build/test, and explicit test-result
       enforcement on the worker using prepared inputs.
@@ -113,7 +119,7 @@ expose the host; workers must not reach a credentialed host.
 - [ ] Cancel superseded PR revisions and report their cancellation without
       conflating distinct configuration/environment test identities.
 - [ ] Apply an explicit review/approval policy for fork PRs and private inputs.
-- [ ] Ensure source workers cannot forge authoritative results by obtaining the
+- [x] Ensure source workers cannot forge authoritative results by obtaining the
       reporting identity.
 
 ## Phase 4: test_meta pilot and cutover
