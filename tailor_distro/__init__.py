@@ -286,7 +286,7 @@ def parse_deb_package_entry(filename: str, distribution: Optional[str] = None,
         match = pattern.match(filename)
         if match:
             if distribution is not None and match.groupdict().get('distribution') not in (None, distribution):
-                continue
+                return None
 
             package_name = match.group('name')
             if package_prefix is not None and not package_name.startswith(package_prefix):

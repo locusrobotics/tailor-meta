@@ -16,7 +16,7 @@ version_date_format = '%Y%m%d.%H%M%S'
 
 package_pattern = re.compile(
     r'^(?:(?P<epoch>\d+):)?(?P<version>.+)-'
-    r'(?P<date>\d{8}\.\d{6})\+git'
+    r'(?P<date>\d{8}\.\d{6})\+(?:git|src)'
     r'(?P<sha>[0-9a-fA-F]+)$'
 )
 

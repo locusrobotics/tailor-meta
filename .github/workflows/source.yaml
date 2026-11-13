@@ -2,6 +2,18 @@ name: Tailor source checks
 on:
   workflow_call:
     inputs:
+      repository_name:
+        type: string
+        required: true
+      source_branch:
+        type: string
+        required: true
+      source_ref:
+        type: string
+        default: ''
+      release_track:
+        type: string
+        required: true
       tailor_meta:
         type: string
         default: master
@@ -18,9 +30,13 @@ on:
         type: string
         required: true
     secrets:
+      TAILOR_SOURCE_TOKEN:
+        required: false
       AWS_ACCESS_KEY_ID:
         required: false
       AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
         required: false
 permissions:
   contents: read
@@ -40,10 +56,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
+          path: source
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source_branch }}
+          path: baseline_repo
       - name: Authenticate and pull test environment
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: us-east-1
           REGISTRY: ${{ inputs.docker_registry }}
           DISTRIBUTION: ${{ matrix.distribution }}
@@ -52,7 +76,54 @@ jobs:
           registry="${REGISTRY#https://}"
           aws ecr get-login-password | docker login --username AWS --password-stdin "${registry%%/*}"
           docker pull "$registry:tailor-image-test-$DISTRIBUTION-$RELEASE_LABEL"
+          docker pull "$registry:tailor-image-dep-checker-$DISTRIBUTION-$RELEASE_LABEL"
           docker logout "${registry%%/*}"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'tailor-source-auth'
+          values = [('AccessKeyId', 'AWS_ACCESS_KEY_ID'), ('SecretAccessKey', 'AWS_SECRET_ACCESS_KEY'),
+                    ('Token', 'AWS_SESSION_TOKEN'), ('Region', 'AWS_DEFAULT_REGION')]
+          path.write_text('\n'.join(f'{key} = {os.environ.get(variable, "")}' for key, variable in values))
+          path.chmod(0o600)
+          PY
+      - name: Dependency and removed-package checks
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAILOR_SOURCE_TOKEN }}
+          REGISTRY: ${{ inputs.docker_registry }}
+          DISTRIBUTION: ${{ matrix.distribution }}
+          RELEASE_LABEL: ${{ inputs.release_label }}
+          RELEASE_TRACK: ${{ inputs.release_track }}
+          ROS_DISTRO_NAME: ${{ inputs.rosdistro_name }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          REPOSITORY_NAME: ${{ inputs.repository_name }}
+        run: |
+          image="${REGISTRY#https://}:tailor-image-dep-checker-$DISTRIBUTION-$RELEASE_LABEL"
+          docker run --rm --user 0 -v "$PWD:/work" -w /work \
+            -v "$RUNNER_TEMP/tailor-source-auth:/etc/apt/s3auth.conf:ro" \
+            -e GITHUB_TOKEN -e RELEASE_TRACK -e ROS_DISTRO_NAME -e SOURCE_BRANCH -e REPOSITORY_NAME "$image" bash -ec '
+            source /home/locus/source_ros_workspace.bash "$ROS_DISTRO_NAME"
+            python3 /home/locus/pull_rosdistro.py --src-dir rosdistro --github-key "$GITHUB_TOKEN" \
+              --clean --ref "$RELEASE_TRACK"
+            python3 /home/locus/pull_distro_repositories.py --src-dir workspace/src --github-key "$GITHUB_TOKEN" \
+              --recipes rosdistro/config/recipes.yaml --rosdistro-index rosdistro/rosdistro/index.yaml \
+              --clean --ref "$SOURCE_BRANCH" --rosdistro-name "$ROS_DISTRO_NAME"
+            target="workspace/src/$ROS_DISTRO_NAME/$REPOSITORY_NAME"
+            test -d "$target"
+            # Replace the fetched baseline, including packages deleted in the PR.
+            find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+            cp -a source/. "$target/"
+            export ROS_PACKAGE_PATH="$PWD/workspace/src/$ROS_DISTRO_NAME:${ROS_PACKAGE_PATH:-}"
+            rosdep install --from-paths "$target" --ignore-src -y
+            rosdep check --from-paths "$target" --ignore-src
+            find baseline_repo -name package.xml -exec grep -ohP "(?<=<name>)[^<]+" {} + | sort -u > baseline_names.txt
+            rosdep check --from-paths "workspace/src/$ROS_DISTRO_NAME" --ignore-src > workspace_rosdep.txt 2>&1 || true
+            removed=$(grep -Fwf baseline_names.txt workspace_rosdep.txt || true)
+            if [[ -n "$removed" ]]; then
+              echo "Unresolved dependencies involving baseline packages: $removed"
+              exit 1
+            fi
+          '
       - name: Rosdep, colcon build and test
         env:
           REGISTRY: ${{ inputs.docker_registry }}
@@ -61,13 +132,14 @@ jobs:
           ROS_DISTRO_NAME: ${{ inputs.rosdistro_name }}
         run: |
           image="${REGISTRY#https://}:tailor-image-test-$DISTRIBUTION-$RELEASE_LABEL"
-          docker run --rm --user 0 -v "$PWD:/work" -w /work -e ROS_DISTRO_NAME "$image" bash -ec '
+          docker run --rm --user 0 -v "$PWD:/work" -w /work -e ROS_DISTRO_NAME \
+            -v "$RUNNER_TEMP/tailor-source-auth:/etc/apt/s3auth.conf:ro" "$image" bash -ec '
             source "$BUNDLE_ROOT/$ROS_DISTRO_NAME/setup.bash"
-            rosdep install --from-paths . --ignore-src -y
-            rosdep check --from-paths . --ignore-src
-            colcon build --merge-install --base-paths . --test-result-base test_results \
+            rosdep install --from-paths source --ignore-src -y
+            rosdep check --from-paths source --ignore-src
+            colcon build --merge-install --base-paths source --test-result-base test_results \
               --cmake-args -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-            colcon test --merge-install --base-paths . --test-result-base test_results \
+            colcon test --merge-install --base-paths source --test-result-base test_results \
               --executor sequential --event-handlers console_direct+
             colcon test-result --test-result-base test_results --verbose
           '
@@ -77,3 +149,6 @@ jobs:
           name: test-results-${{ matrix.distribution }}
           path: test_results/**/*.xml
           retention-days: 10
+      - name: Remove temporary APT credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/tailor-source-auth"

@@ -25,11 +25,11 @@ on:
         default: false
     secrets:
       TAILOR_GITHUB_TOKEN:
-        required: true
+        required: false
       AWS_ACCESS_KEY_ID:
-        required: true
+        required: false
       AWS_SECRET_ACCESS_KEY:
-        required: true
+        required: false
       AWS_SESSION_TOKEN:
         required: false
       ANSIBLE_VAULT_PASS:
@@ -50,15 +50,25 @@ jobs:
         with:
           path: rosdistro
           persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: locusrobotics/tailor-meta
-          ref: ${{ inputs.tailor_meta }}
-          token: ${{ secrets.TAILOR_GITHUB_TOKEN }}
-          path: tailor-meta
-          persist-credentials: false
       - run: pip install PyYAML==6.0.2 Jinja2==3.1.6
-      - run: python tailor-meta/ci/validate.py rosdistro
+      - name: Validate untrusted configuration without credentials
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+          from jinja2 import StrictUndefined
+          from jinja2.sandbox import SandboxedEnvironment
+          root = Path('rosdistro')
+          for directory in ('rosdistro', 'rosdep', 'config'):
+              for path in (root / directory).glob('*.yaml'):
+                  if path.name != 'upstream.yaml':
+                      yaml.safe_load(path.read_text())
+          recipes = yaml.safe_load((root / 'config/recipes.yaml').read_text())
+          template = SandboxedEnvironment(undefined=StrictUndefined).from_string(
+              (root / 'config/upstream.yaml').read_text())
+          for codename in recipes['os']['ubuntu']:
+              yaml.safe_load(template.render(distribution=codename))
+          PY
   build:
     needs: validate
     # Never run pull-request code on the privileged buildfarm.
@@ -70,7 +80,7 @@ jobs:
     environment: ${{ inputs.deploy && 'tailor-production' || 'tailor-build' }}
     timeout-minutes: 1440
     env:
-      BUILD_DIR: ${{ runner.temp }}/tailor-${{ github.run_id }}-${{ github.run_attempt }}
+      BUILD_DIR: ${{ github.workspace }}/build-${{ github.run_id }}-${{ github.run_attempt }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
@@ -94,6 +104,9 @@ jobs:
       - run: |
           test -n "$TAILOR_GPG_DIR"
           test -d "$TAILOR_GPG_DIR"
+          test -n "$GITHUB_TOKEN"
+          test -n "$AWS_ACCESS_KEY_ID"
+          test -n "$AWS_SECRET_ACCESS_KEY"
           python3 -m venv "$RUNNER_TEMP/tailor-venv"
           "$RUNNER_TEMP/tailor-venv/bin/pip" install -e ./tailor-meta
           mkdir "$BUILD_DIR"
@@ -149,3 +162,12 @@ jobs:
           name: tailor-packages
           retention-days: 7
           path: ${{ env.BUILD_DIR }}/packages/**/*.deb
+      - name: Remove run-local build outputs
+        if: always()
+        run: |
+          # Delete only this run's generated directory, never shared runner data.
+          case "$BUILD_DIR" in
+            "$GITHUB_WORKSPACE/build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
+              sudo rm -rf -- "$BUILD_DIR" ;;
+            *) exit 1 ;;
+          esac

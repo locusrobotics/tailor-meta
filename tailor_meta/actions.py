@@ -63,7 +63,10 @@ class Build:
         self.timestamp = config['timestamp']
         self.apt = config['common']['apt_repo']
         self.parent = 'tailor-parent:' + os.environ.get('GITHUB_RUN_ID', 'local')
-        self.secret_dir = pathlib.Path(os.environ['RUNNER_TEMP']) / 'tailor-secrets'
+        self.secret_dir = pathlib.Path(os.environ['RUNNER_TEMP']) / (
+            'tailor-secrets-' + os.environ.get('GITHUB_RUN_ID', 'local') + '-' +
+            os.environ.get('GITHUB_RUN_ATTEMPT', '1'))
+        self.local_images = []
 
     def run(self, *args):
         subprocess.run([str(arg) for arg in args], check=True)
@@ -80,9 +83,20 @@ class Build:
         if privileged:
             args += ['--privileged', '-v', '/var/run/docker.sock:/var/run/docker.sock',
                      '-v', '/dev:/dev', '-v', '/lib/modules:/lib/modules:ro', '-v', '/boot:/boot:ro']
-        self.run(*args, image, *command)
+        args += ['-e', f'TAILOR_ORGANIZATION={self.config["common"].get("organization", "locusrobotics")}']
+        # Git's environment configuration is process-local, never written to an
+        # image layer or checkout. Preserve private SSH URL rewriting.
+        git_auth = ('if [[ -n "${GITHUB_TOKEN:-}" ]]; then '
+                    'export GIT_CONFIG_COUNT=1 '
+                    'GIT_CONFIG_KEY_0="url.https://x-access-token:${GITHUB_TOKEN}@github.com/'
+                    '${TAILOR_ORGANIZATION}/.insteadOf" '
+                    'GIT_CONFIG_VALUE_0="ssh://git@github.com/${TAILOR_ORGANIZATION}/"; fi; exec "$@"')
+        self.run(*args, image, 'bash', '-ec', git_auth, 'tailor', *command)
 
     def docker_build(self, image, dockerfile, context='.', **build_args):
+        # Only tool/configuration checkouts belong in environment image contexts.
+        (pathlib.Path(context) / '.dockerignore').write_text(
+            '**/.git\n**/__pycache__\n**/.venv\n**/*.egg-info\nworkspace\nsrc\npackages\n')
         source = pathlib.Path(dockerfile)
         if source.name != 'Dockerfile-secure':
             secured = source.with_name('Dockerfile-secure')
@@ -98,6 +112,7 @@ class Build:
                 args += ['--secret', f'id={name},env={name}']
         args += ['--secret', f'id=s3auth,src={self.secret_dir}/s3auth.conf', context]
         self.run(*args)
+        self.local_images.append(image)
 
     def execute(self):
         if self.config['kind'] == 'trivial':
@@ -123,6 +138,12 @@ class Build:
         finally:
             for file in self.secret_dir.iterdir():
                 file.unlink()
+            for image in self.local_images:
+                try:
+                    self.run('docker', 'image', 'rm', image)
+                except subprocess.CalledProcessError:
+                    # Cleanup must not hide the original build failure.
+                    pass
 
     def distribution(self):
         recipes = 'rosdistro/config/recipes.yaml'
@@ -171,7 +192,7 @@ class Build:
                            *(['--rebuild-all'] if self.rebuild else []))
             if self.deploy:
                 self.container(self.parent, 'bash', '-ec',
-                               'publish_packages *.deb "$@" --keys /gpg/*.key', 'publish',
+                               'shopt -s nullglob; publish_packages *.deb "$@" --keys /gpg/*.key', 'publish',
                                '--release-label', self.label, '--apt-repo', self.apt, '--distribution', version,
                                *self.retention())
             # Isolate per-OS package output; never publish the previous OS's debs.

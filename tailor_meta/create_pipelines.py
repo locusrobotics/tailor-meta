@@ -20,13 +20,20 @@ def source_workflow(context):
     """Only a caller stub is installed in each opted-in source repository."""
     return yaml.safe_dump({
         'name': 'Tailor source checks',
-        'on': {'push': {'branches': [context['source_branch']]}, 'pull_request': {}, 'workflow_dispatch': {}},
+        'on': {'push': {'branches': [context['source_branch']]}, 'pull_request': {}, 'workflow_dispatch': {
+            'inputs': {'source_ref': {'description': 'Optional reviewed PR ref (pull/123/merge)',
+                                      'type': 'string', 'default': ''}},
+        }},
         'permissions': {'contents': 'read'},
         'jobs': {'tailor': {
             'uses': f"locusrobotics/tailor-meta/.github/workflows/source.yaml@{context['tailor_meta']}",
             'with': {
                 'tailor_meta': context['tailor_meta'],
                 'rosdistro_name': context['rosdistro_name'],
+                'repository_name': context['repository_name'],
+                'source_branch': context['source_branch'],
+                'source_ref': '${{ inputs.source_ref || github.sha }}',
+                'release_track': context['release_track'],
                 'release_label': context['release_label'],
                 'distributions': json.dumps(context['distributions']),
                 'docker_registry': context['docker_registry'],
@@ -45,7 +52,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
 
     all_distros = [distro for distros in recipes['os'].values() for distro in distros]
 
-    jenkins_jobs = []
+    managed_repositories = []
 
     for distro_name, _ in common_options['distributions'].items():
 
@@ -73,6 +80,7 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
 
             context = {
                 'tailor_meta': meta_branch,
+                'repository_name': repo_name,
                 'source_branch': branch,
                 'rosdistro_job': rosdistro_job,
                 'rosdistro_name': distro_name,
@@ -82,18 +90,18 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 'docker_registry': common_options['docker_registry'],
             }
 
-            new_jenkinsfile = source_workflow(context)
+            new_workflow = source_workflow(context)
             try:
-                old_jenkinsfile = gh_repo.get_contents(path=WORKFLOW_PATH, ref=branch)
+                old_workflow = gh_repo.get_contents(path=WORKFLOW_PATH, ref=branch)
 
-                if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
+                if old_workflow.decoded_content.decode() != new_workflow:
                     click.echo("Updating existing file...", err=True)
                     if deploy:
                         gh_repo.update_file(
                             path=WORKFLOW_PATH,
                             message='Tailor: Updating Actions workflow',
-                            content=new_jenkinsfile,
-                            sha=old_jenkinsfile.sha,
+                            content=new_workflow,
+                            sha=old_workflow.sha,
                             branch=branch)
                 else:
                     click.echo("No change required", err=True)
@@ -105,12 +113,12 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                     gh_repo.create_file(
                         path=WORKFLOW_PATH,
                         message='Tailor: Creating Actions workflow',
-                        content=new_jenkinsfile,
+                        content=new_workflow,
                         branch=branch)
 
-            jenkins_jobs.append({'repo_name': repo_name, 'owner_name': gh_repo.owner.login})
+            managed_repositories.append({'repo_name': repo_name, 'owner_name': gh_repo.owner.login})
 
-    print(yaml.dump(jenkins_jobs))
+    print(yaml.dump(managed_repositories))
 
 
 def main():

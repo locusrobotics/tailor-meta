@@ -61,8 +61,8 @@ def test_secure_build_environment(path):
 
 
 def test_source_stub():
-    text = source_workflow(dict(source_branch='release/26.1/ros2', tailor_meta='abc123',
-                                rosdistro_name='ros2', release_label='26.1-rc',
+    text = source_workflow(dict(source_branch='release/26.1/ros2', tailor_meta='abc123', repository_name='example',
+                                rosdistro_name='ros2', release_label='26.1-rc', release_track='26.1',
                                 distributions=['noble'], docker_registry='example.invalid/ci'))
     workflow = yaml.safe_load(text)
     assert workflow['on']['push']['branches'] == ['release/26.1/ros2']
