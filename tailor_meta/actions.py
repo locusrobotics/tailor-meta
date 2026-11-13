@@ -69,7 +69,8 @@ class Build:
         subprocess.run([str(arg) for arg in args], check=True)
 
     def container(self, image, *command, privileged=False):
-        args = ['docker', 'run', '--rm', '--user', '0', '-v', f'{self.root}:/work', '-w', '/work',
+        args = ['docker', 'run', '--rm', '--user', '0', '-e', 'HOME=/home/tailor',
+                '-v', f'{self.root}:/work', '-w', '/work',
                 '-v', f'{self.secret_dir}/s3auth.conf:/etc/apt/s3auth.conf:ro',
                 '-v', f'{self.secret_dir}/vault:/home/tailor/.vault_pass.txt:ro',
                 '-v', f'{os.environ["TAILOR_GPG_DIR"]}:/gpg:ro']
@@ -112,6 +113,10 @@ class Build:
         for file in self.secret_dir.iterdir():
             file.chmod(0o600)
         try:
+            if self.deploy and not self.graph_only:
+                for directory in ('rosdistro', 'rosdep', 'config'):
+                    self.run('aws', 's3', 'sync', f'rosdistro/{directory}',
+                             f'{self.apt}/{self.label}/{directory}')
             self.distribution()
             if self.deploy and not self.graph_only:
                 self.images()
@@ -121,7 +126,7 @@ class Build:
 
     def distribution(self):
         recipes = 'rosdistro/config/recipes.yaml'
-        self.docker_build(self.parent, 'tailor-distro/environment/Dockerfile', AWS_REGION='us-east-1',
+        self.docker_build(self.parent, 'tailor-meta/environment/distro/Dockerfile', AWS_REGION='us-east-1',
                           APT_REFRESH_KEY=datetime.date.today().strftime('%G-W%V'))
         self.container(self.parent, 'create_recipes', '--recipes', recipes, '--recipes-dir', 'workspace/recipes',
                        '--release-track', self.config['track'], '--release-label', self.label,
@@ -130,6 +135,9 @@ class Build:
         self.container(self.parent, 'bash', '-ec',
                        'pull_distro_repositories --src-dir workspace/src --github-key "$GITHUB_TOKEN" '
                        '--recipes rosdistro/config/recipes.yaml --rosdistro-index rosdistro/rosdistro/index.yaml --clean')
+        if self.deploy and not self.graph_only:
+            self.run('aws', 's3', 'cp', 'workspace/src', f'{self.apt}/{self.label}/changes/{self.timestamp}/',
+                     '--recursive', '--exclude', '*', '--include', '*_repositories_data.jsonl')
         if not self.graph_only:
             for version in self.config['os']:
                 self.container(self.parent, 'bash', '-ec',
@@ -142,7 +150,7 @@ class Build:
                        '--workspace', 'workspace', '--apt-configs', '/etc/apt/s3auth.conf')
         if self.graph_only:
             return
-        self.run('cp', '-a', 'tailor-distro', 'workspace/tailor-distro')
+        self.run('cp', '-a', 'tailor-meta', 'workspace/tailor-meta')
         for version in self.config['os']:
             graph = f'workspace/graphs/ubuntu-{version}-graph.yaml'
             self.container(self.parent, 'get_dependency_list', '--graph', graph, '--recipe', recipes,
@@ -172,6 +180,8 @@ class Build:
             for deb in pathlib.Path('.').glob('*.deb'):
                 deb.rename(destination / deb.name)
         if self.deploy:
+            self.run('aws', 's3', 'sync', 'workspace/dependencies', f'{self.apt}/{self.label}/dependencies',
+                     '--exclude', '*', '--include', '*.txt')
             self.container(self.parent, 's3_directory_cleanup', '--release-label', self.label,
                            '--apt-repo', self.apt.removeprefix('s3://'), *self.retention())
             for version in self.config['os']:
@@ -190,7 +200,7 @@ class Build:
     def images(self):
         common = self.config['common']
         image = 'tailor-image:' + os.environ.get('GITHUB_RUN_ID', 'local')
-        self.docker_build(image, 'tailor-image/environment/Dockerfile', APT_REPO=self.apt, APT_REGION='us-east-1',
+        self.docker_build(image, 'tailor-meta/environment/image/Dockerfile', APT_REPO=self.apt, APT_REGION='us-east-1',
                           RELEASE_LABEL=self.label, ORGANIZATION=common['organization'],
                           FLAVOUR=common['build_flavour'],
                           BUNDLE_ROOT=f'/opt/{common["organization"]}/{self.label}',

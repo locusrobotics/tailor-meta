@@ -1,0 +1,79 @@
+name: Tailor source checks
+on:
+  workflow_call:
+    inputs:
+      tailor_meta:
+        type: string
+        default: master
+      rosdistro_name:
+        type: string
+        required: true
+      release_label:
+        type: string
+        required: true
+      distributions:
+        type: string
+        required: true
+      docker_registry:
+        type: string
+        required: true
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: tailor-source-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    # Fork PRs cannot access private ECR. No untrusted code on self-hosted runners.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        distribution: ${{ fromJSON(inputs.distributions) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authenticate and pull test environment
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          REGISTRY: ${{ inputs.docker_registry }}
+          DISTRIBUTION: ${{ matrix.distribution }}
+          RELEASE_LABEL: ${{ inputs.release_label }}
+        run: |
+          registry="${REGISTRY#https://}"
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${registry%%/*}"
+          docker pull "$registry:tailor-image-test-$DISTRIBUTION-$RELEASE_LABEL"
+          docker logout "${registry%%/*}"
+      - name: Rosdep, colcon build and test
+        env:
+          REGISTRY: ${{ inputs.docker_registry }}
+          DISTRIBUTION: ${{ matrix.distribution }}
+          RELEASE_LABEL: ${{ inputs.release_label }}
+          ROS_DISTRO_NAME: ${{ inputs.rosdistro_name }}
+        run: |
+          image="${REGISTRY#https://}:tailor-image-test-$DISTRIBUTION-$RELEASE_LABEL"
+          docker run --rm --user 0 -v "$PWD:/work" -w /work -e ROS_DISTRO_NAME "$image" bash -ec '
+            source "$BUNDLE_ROOT/$ROS_DISTRO_NAME/setup.bash"
+            rosdep install --from-paths . --ignore-src -y
+            rosdep check --from-paths . --ignore-src
+            colcon build --merge-install --base-paths . --test-result-base test_results \
+              --cmake-args -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            colcon test --merge-install --base-paths . --test-result-base test_results \
+              --executor sequential --event-handlers console_direct+
+            colcon test-result --test-result-base test_results --verbose
+          '
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.distribution }}
+          path: test_results/**/*.xml
+          retention-days: 10

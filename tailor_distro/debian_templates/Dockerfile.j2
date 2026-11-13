@@ -125,7 +125,7 @@ RUN python3 -m venv --system-site-packages /opt/tailor_venv
 ENV VIRTUAL_ENV=/opt/tailor_venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-COPY tailor-distro tailor-distro
+COPY tailor-meta /tailor-meta
 
 # Install everything into the venv explicitly.
 # colcon-core/colcon-clean must come before tailor-distro so that tailor-distro's
@@ -134,7 +134,7 @@ RUN /opt/tailor_venv/bin/pip install rospkg
 RUN /opt/tailor_venv/bin/pip install --ignore-installed --no-deps colcon-core colcon-clean
 RUN /opt/tailor_venv/bin/pip install colcon-common-extensions \
     "git+https://github.com/ruffsl/colcon-cache.git"
-RUN /opt/tailor_venv/bin/pip install -e tailor-distro
+RUN /opt/tailor_venv/bin/pip install -e /tailor-meta
 RUN ln -sf /opt/tailor_venv/bin/colcon /usr/local/bin/colcon
 
 # Install restic

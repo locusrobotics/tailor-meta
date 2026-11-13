@@ -55,11 +55,11 @@ def create_image(name: str, distribution: str, apt_repo: str, release_label: str
         package = recipe[name]['package']
         provision_file = recipe[name]['provision_file']
     except KeyError:
-        package = '/tailor-image'
+        package = '/tailor-meta/environment/image'
         provision_file = f'{build_type}.yaml'
 
     env['ANSIBLE_CONFIG'] = find_package(package, 'ansible.cfg', env)
-    template_path = f'/tailor-image/environment/image_recipes/{build_type}/{build_type}.json'
+    template_path = f'/tailor-meta/environment/image/image_recipes/{build_type}/{build_type}.json'
     provision_file_path = find_package(package, 'playbooks/' + provision_file, env)
 
     optional_vars = []
@@ -89,8 +89,7 @@ def create_image(name: str, distribution: str, apt_repo: str, release_label: str
             '--build-arg', f'APT_REPO={common_config["apt_repo"]}',
             '--build-arg', f'USERNAME={recipe[name]["username"]}',
             '--build-arg', f'ENTRYPOINT_PATH=entrypoint.sh',
-            '--secret', f'id=aws_key_id,env=AWS_ACCESS_KEY_ID',
-            '--secret','id=aws_secret,env=AWS_SECRET_ACCESS_KEY',
+            '--secret', 'id=s3auth,src=/etc/apt/s3auth.conf',
             '--secret', f'id=creds,env=PASSWORD'
         ]
 
@@ -104,7 +103,7 @@ def create_image(name: str, distribution: str, apt_repo: str, release_label: str
             ['docker', 'build','--progress=plain','--target', 'runtime']
             + build_args
             + ['-t', image_base_tag]
-            + [f'/tailor-image/environment/image_recipes/{build_type}/']
+            + [f'/tailor-meta/environment/image/image_recipes/{build_type}/']
         )
         run_command(docker_build_cmd, env=build_env)
 
@@ -162,7 +161,7 @@ def create_image(name: str, distribution: str, apt_repo: str, release_label: str
         except botocore.exceptions.ClientError:
             click.echo(f'Unable to download base image from {base_image_key}, creating a new one')
             run_command(['bash',
-                         '/tailor-image/environment/create_base_image.bash',
+                         '/tailor-meta/environment/image/create_base_image.bash',
                          f'{base_image_local_path}',
                          f'{distribution}'])
             boto3.resource('s3').Bucket(apt_repo).upload_file(base_image_local_path, base_image_key)
@@ -215,8 +214,6 @@ def create_image(name: str, distribution: str, apt_repo: str, release_label: str
             '-var', f'source_ami_id={source_ami_id}',
             '-var', f'distribution={distribution}',
             '-var', f'release_label={release_label}',
-            '-var', f'aws_access_key={os.environ["AWS_ACCESS_KEY_ID"]}',
-            '-var', f'aws_secret_key={os.environ["AWS_SECRET_ACCESS_KEY"]}'
         ]
     else:
         return 0

@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import argparse
+import json
 import click
 import github
 import pathlib
@@ -7,34 +8,32 @@ import rosdistro
 import sys
 import yaml
 
-from jinja2 import Environment, BaseLoader
 from typing import Mapping, Any
 from urllib.parse import urlsplit
 
 from . import YamlLoadAction
 
-JENKINSFILE_TEMPLATE = """#!/usr/bin/env groovy
-@Library('tailor-meta@{{ tailor_meta }}')_
-tailorTestPipeline(
-  // Name of job that generated this test definition.
-  rosdistro_job: '{{ rosdistro_job }}',
-  // Distribution name
-  rosdistro_name: '{{ rosdistro_name }}',
-  // Release track to test branch against.
-  release_track: '{{ release_track }}',
-  // Release label to pull test images from.
-  release_label: '{{ release_label }}',
-  // OS distributions to test.
-  distributions: ['{{ distributions | join("', '") }}'],
-  // Version of tailor_meta to build against
-  tailor_meta: '{{ tailor_meta }}',
-  // Master or release branch associated with this track
-  source_branch: '{{ source_branch }}',
-  // Docker registry where test image is stored
-  docker_registry: '{{ docker_registry }}'
-)
+WORKFLOW_PATH = '.github/workflows/tailor.yaml'
 
-"""
+
+def source_workflow(context):
+    """Only a caller stub is installed in each opted-in source repository."""
+    return yaml.safe_dump({
+        'name': 'Tailor source checks',
+        'on': {'push': {'branches': [context['source_branch']]}, 'pull_request': {}, 'workflow_dispatch': {}},
+        'permissions': {'contents': 'read'},
+        'jobs': {'tailor': {
+            'uses': f"locusrobotics/tailor-meta/.github/workflows/source.yaml@{context['tailor_meta']}",
+            'with': {
+                'tailor_meta': context['tailor_meta'],
+                'rosdistro_name': context['rosdistro_name'],
+                'release_label': context['release_label'],
+                'distributions': json.dumps(context['distributions']),
+                'docker_registry': context['docker_registry'],
+            },
+            'secrets': 'inherit',
+        }},
+    }, sort_keys=False)
 
 
 def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], github_key: str, deploy: bool,
@@ -64,12 +63,12 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
             if not repository_data.source_repository or not repository_data.source_repository.test_commits:
                 continue
 
-            click.echo(f"Managing Jenkinsfile for repo {repo_name}", err=True)
+            click.echo(f"Managing Actions workflow for repo {repo_name}", err=True)
 
             url = repository_data.source_repository.url
             branch = repository_data.source_repository.version
 
-            gh_repo_name = urlsplit(url).path[len('/'):-len('.git')]
+            gh_repo_name = urlsplit(url).path.strip('/').removesuffix('.git')
             gh_repo = github_client.get_repo(gh_repo_name, lazy=False)
 
             context = {
@@ -83,27 +82,29 @@ def create_pipelines(rosdistro_index: pathlib.Path, recipes: Mapping[str, Any], 
                 'docker_registry': common_options['docker_registry'],
             }
 
-            new_jenkinsfile = Environment(loader=BaseLoader()).from_string(JENKINSFILE_TEMPLATE).render(**context)
+            new_jenkinsfile = source_workflow(context)
             try:
-                old_jenkinsfile = gh_repo.get_contents(path="/Jenkinsfile", ref=branch)
+                old_jenkinsfile = gh_repo.get_contents(path=WORKFLOW_PATH, ref=branch)
 
                 if old_jenkinsfile.decoded_content.decode() != new_jenkinsfile:
                     click.echo("Updating existing file...", err=True)
                     if deploy:
                         gh_repo.update_file(
-                            path='Jenkinsfile',
-                            message='Tailor: Updating Jenkinsfile',
+                            path=WORKFLOW_PATH,
+                            message='Tailor: Updating Actions workflow',
                             content=new_jenkinsfile,
                             sha=old_jenkinsfile.sha,
                             branch=branch)
                 else:
                     click.echo("No change required", err=True)
-            except github.GithubException:
+            except github.GithubException as error:
+                if error.status != 404:
+                    raise
                 click.echo("Writing new file...", err=True)
                 if deploy:
                     gh_repo.create_file(
-                        path='Jenkinsfile',
-                        message='Tailor: Creating Jenkinsfile',
+                        path=WORKFLOW_PATH,
+                        message='Tailor: Creating Actions workflow',
                         content=new_jenkinsfile,
                         branch=branch)
 

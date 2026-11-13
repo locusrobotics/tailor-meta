@@ -92,8 +92,8 @@ RUN curl -sSL https://releases.hashicorp.com/packer/1.9.1/packer_1.9.1_linux_amd
 COPY rosdistro/rosdep/rosdep.yaml /root/rosdep.yaml
 COPY rosdistro /rosdistro
 
-COPY tailor-image tailor-image
-RUN pip3 install --break-system-packages -e tailor-image
+COPY tailor-meta /tailor-meta
+RUN pip3 install --break-system-packages -e /tailor-meta
 
 # Add package mirror
 RUN if ! timeout --kill-after=30s 3m \

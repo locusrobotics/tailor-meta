@@ -36,8 +36,8 @@ class ImageEntry:
 
 
 def find_package(package: str, path: str, env):
-    if package == "/tailor-image":
-        path = f"{package}/environment/{path}"
+    if package == "/tailor-meta/environment/image":
+        path = f"{package}/{path}"
     else:
         path = (
             run_command(["catkin_find", package, path, "--first-only"], stdout=subprocess.PIPE, env=env)
@@ -48,7 +48,9 @@ def find_package(package: str, path: str, env):
 
 
 def run_command(cmd, check=True, *args, **kwargs):
-    click.echo(" ".join(cmd), file=sys.stderr)
+    visible = ['<redacted>' if any(key in str(arg).lower() for key in
+               ('password=', 'aws_access_key=', 'aws_secret_key=', 'token=')) else str(arg) for arg in cmd]
+    click.echo(" ".join(visible), file=sys.stderr)
     return subprocess.run(cmd, check=check, *args, **kwargs)
 
 

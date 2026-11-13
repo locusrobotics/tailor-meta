@@ -81,8 +81,8 @@ RUN python3 -m venv --system-site-packages /opt/tailor_venv
 ENV VIRTUAL_ENV=/opt/tailor_venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-COPY tailor-distro tailor-distro
-RUN pip3 install -e tailor-distro
+COPY tailor-meta /tailor-meta
+RUN pip3 install -e /tailor-meta
 
 FROM base AS dev
 
@@ -95,7 +95,7 @@ RUN ln -sf /opt/deb-s3/bin/deb-s3 /usr/local/bin/deb-s3
 
 # Copy venv
 COPY --from=rosdep-tailor /opt/tailor_venv /opt/tailor_venv
-COPY --from=rosdep-tailor /tailor-distro /tailor-distro
+COPY --from=rosdep-tailor /tailor-meta /tailor-meta
 ENV VIRTUAL_ENV=/opt/tailor_venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 

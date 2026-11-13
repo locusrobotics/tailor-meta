@@ -60,21 +60,12 @@ RUN apt-get update && apt-get install --no-install-recommends -y apt-transport-h
     echo "deb [arch=amd64] ${APT_REPO}/${BUNDLE_VERSION}/ubuntu ${OS_VERSION} main" >> /etc/apt/sources.list.d/tailor.list && \
     echo "deb [arch=amd64] ${APT_REPO}/${BUNDLE_VERSION}/ubuntu ${OS_VERSION}-mirror ${OS_VERSION}" >> /etc/apt/sources.list.d/tailor.list
 
-RUN --mount=type=secret,id=aws_secret \
-    --mount=type=secret,id=aws_key_id \
-    AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws_secret)" && \
-    AWS_ACCESS_KEY_ID="$(cat /run/secrets/aws_key_id)" && \
-    echo "AccessKeyId = $AWS_ACCESS_KEY_ID" | tee /etc/apt/s3auth.conf && \
-    echo "SecretAccessKey = $AWS_SECRET_ACCESS_KEY" | tee -a /etc/apt/s3auth.conf && \
-    echo "Token = ''" | tee -a /etc/apt/s3auth.conf && \
-    echo "Region = 'us-east-1'" | tee -a /etc/apt/s3auth.conf
-
 # Install bundle
-RUN apt-get update && \
+RUN --mount=type=secret,id=s3auth,target=/etc/apt/s3auth.conf \
+    apt-get update && \
     RTI_NC_LICENSE_ACCEPTED=yes apt-get install --no-install-recommends -qy\
     ${ORGANIZATION}-${BUNDLE_FLAVOUR}-${BUNDLE_VERSION}  && \
     rm -rf /var/lib/apt/lists/* && \
-    rm -f /etc/apt/s3auth.conf && \
     rm -f /etc/apt/sources.list.d/tailor.list
 
 FROM bundle AS runtime

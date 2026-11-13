@@ -1,0 +1,22 @@
+name: Tailor Python checks
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-apt python3-venv
+          /usr/bin/python3 -m venv --system-site-packages "$RUNNER_TEMP/check-venv"
+          "$RUNNER_TEMP/check-venv/bin/pip" install -e . pytest==8.4.1
+      - run: "$RUNNER_TEMP/check-venv/bin/python" -m compileall -q tailor_meta tailor_distro tailor_image
+      - run: |
+          if [[ -d tests ]]; then
+            "$RUNNER_TEMP/check-venv/bin/pytest" -o addopts= tests
+          fi
