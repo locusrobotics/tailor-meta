@@ -89,6 +89,22 @@ def test_final_claim_cannot_be_adopted_by_rerun():
     assert Build(identity).retention() == []
 
 
+def test_final_claim_race_does_not_ignore_precondition_failure():
+    from botocore.exceptions import ClientError
+    client = mock.Mock()
+    client.list_objects_v2.return_value = {'KeyCount': 0}
+    client.put_object.side_effect = ClientError({'Error': {'Code': 'PreconditionFailed'}}, 'PutObject')
+    with pytest.raises(ClientError):
+        claim_release(config(kind='final'), client)
+
+
+def test_feature_publication_does_not_claim_immutable_label():
+    client = mock.Mock()
+    claim_release(config(), client)
+    client.put_object.assert_not_called()
+    client.list_objects_v2.assert_not_called()
+
+
 def test_snapshot_detects_configuration_change(tmp_path):
     (tmp_path / 'config').mkdir()
     path = tmp_path / 'config/recipes.yaml'

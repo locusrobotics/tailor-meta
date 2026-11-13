@@ -56,6 +56,14 @@ def revision(root):
     return subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
 
 
+def file_digest(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def plan(root, ref, mode='packages'):
     if mode not in MODES:
         raise ValueError(f'Unsupported mode: {mode}')
@@ -212,6 +220,9 @@ class Build:
         self.config['completed'].append(stage)
 
     def fetch(self):
+        # Docker writes root-owned files, but later host steps must be able to
+        # create the packaging context beside them.
+        Path('workspace').mkdir(exist_ok=True)
         self.docker_build(self.parent, 'tailor-meta/environment/distro/Dockerfile',
                           APT_REFRESH_KEY=self.timestamp[:6])
         self.container(self.parent, 'create_recipes', '--recipes', 'rosdistro/config/recipes.yaml',
@@ -264,14 +275,14 @@ class Build:
             for deb in root.glob('*.deb'):
                 deb.rename(destination / deb.name)
             self.config.setdefault('packages', {})[version] = {
-                path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in destination.glob('*.deb')
+                path.name: file_digest(path) for path in destination.glob('*.deb')
             }
 
     def publish(self):
         # Every OS completed before this stage. Validate the package snapshot
         # before mutating any APT repository.
         for version in self.config['os']:
-            actual = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            actual = {p.name: file_digest(p)
                       for p in (Path('packages') / version).glob('*.deb')}
             if actual != self.config['packages'][version]:
                 raise ValueError(f'Package snapshot changed for {version}')

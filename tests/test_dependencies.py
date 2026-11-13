@@ -1,5 +1,24 @@
 from tailor_distro.blossom import Graph, GraphPackage
 
+
+def test_dependency_export_covers_packages_outside_flavour_roots(tmp_path, monkeypatch):
+    import sys
+    import yaml
+    from unittest import mock
+    from tailor_distro.get_dependency_list import main
+
+    recipe = tmp_path / 'recipes.yaml'
+    recipe.write_text(yaml.safe_dump({'flavours': {'test': {'distributions': {
+        'ros1': {'root_packages': ['root']}}}}}))
+    graph = mock.Mock(os_version='noble', release_label='feature-ci', packages={'ros1': {'root': {}, 'other': {}}})
+    graph.all_apt_depends.side_effect = lambda name, distro: {'cmake'} if name == 'root' else {'libextra-dev'}
+    monkeypatch.setattr(sys, 'argv', ['get_dependency_list', '--recipe', str(recipe),
+                                    '--graph', 'unused.yaml', '--workspace', str(tmp_path)])
+    with mock.patch('tailor_distro.get_dependency_list.Graph.from_yaml', return_value=graph):
+        main()
+    assert (tmp_path / 'dependencies/all-noble-feature-ci-dependencies.txt').read_text().splitlines() == [
+        'cmake', 'libextra-dev']
+
 # Arbitrary dates to test
 OLD_BUILD_DATE = "20260506.000000"
 NEW_BUILD_DATE = "20260507.000000"
