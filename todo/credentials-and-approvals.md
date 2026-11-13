@@ -1,5 +1,9 @@
 # Credentials, runner isolation, and publication approval
 
+For source CI, use the central runner/read-role and separate uncredentialed
+worker model in `central-source-ci.md`. Do not provision AWS or fleet-access
+tokens in source repositories, or bake long-lived secrets into runner images.
+
 Keep the existing stage-level credential separation while replacing long-lived
 identities and documenting operational access requirements.
 

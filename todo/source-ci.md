@@ -1,5 +1,10 @@
 # Source CI and cross-repository orchestration
 
+The chosen next architecture is central polling with trusted preparation and
+uncredentialed workers, followed by GitHub App events. See `central-source-ci.md`.
+The source-secret/stub model below describes the transition, not the desired
+long-term execution boundary.
+
 Source CI currently runs on source pushes or explicit manual dispatch. Stub
 updates are applied directly to configured branches, aggregated by repository
 and source branch to avoid ROS distribution collisions.
