@@ -1,0 +1,41 @@
+name: Set up Tailor
+description: Install the pinned implementation and optionally prepare a build workspace/plan
+inputs:
+  implementation:
+    description: Implementation checkout path
+    default: tailor-meta
+  configuration:
+    description: Caller configuration checkout path
+    default: rosdistro
+  mode:
+    default: validate
+  prepare:
+    description: Prepare a persisted distribution build plan
+    default: 'false'
+outputs:
+  directory:
+    description: Run-local build workspace
+    value: ${{ steps.setup.outputs.directory }}
+runs:
+  using: composite
+  steps:
+    - id: setup
+      shell: bash
+      env:
+        IMPLEMENTATION: ${{ inputs.implementation }}
+        CONFIGURATION: ${{ inputs.configuration }}
+        MODE: ${{ inputs.mode }}
+        PREPARE: ${{ inputs.prepare }}
+      run: |
+        python3 -m venv --system-site-packages "$RUNNER_TEMP/tailor-venv"
+        "$RUNNER_TEMP/tailor-venv/bin/pip" install -e "$IMPLEMENTATION"
+        echo "$RUNNER_TEMP/tailor-venv/bin" >> "$GITHUB_PATH"
+        if [[ "$PREPARE" == true ]]; then
+          directory="$GITHUB_WORKSPACE/build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir "$directory"
+          cp -a "$IMPLEMENTATION" "$directory/tailor-meta"
+          cp -a "$CONFIGURATION" "$directory/rosdistro"
+          cd "$directory"
+          "$RUNNER_TEMP/tailor-venv/bin/tailor_actions" plan --mode "$MODE"
+          echo "directory=$directory" >> "$GITHUB_OUTPUT"
+        fi

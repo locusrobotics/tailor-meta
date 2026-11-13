@@ -7,11 +7,12 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import tempfile
 
 import yaml
+
+from . import toolchains
 
 
 MODES = ('validate', 'graph', 'packages', 'release')
@@ -64,11 +65,11 @@ def file_digest(path):
     return digest.hexdigest()
 
 
-def plan(root, ref, mode='packages'):
+def plan(root, ref, mode='packages', images=None, allow_local=False):
     if mode not in MODES:
         raise ValueError(f'Unsupported mode: {mode}')
     recipes = yaml.safe_load((root / 'config/recipes.yaml').read_text())
-    images = yaml.safe_load((root / 'config/images.yaml').read_text()).get('images') or {}
+    definitions = yaml.safe_load((root / 'config/images.yaml').read_text()).get('images') or {}
     if set(recipes['os']) != {'ubuntu'}:
         raise ValueError('The packaging environment currently supports Ubuntu only')
     targets = recipes['os']['ubuntu']
@@ -78,7 +79,7 @@ def plan(root, ref, mode='packages'):
         raise ValueError('Builds require master, feature/*, release/*, or a release tag')
     result.update(schema=1, mode=mode, ref=ref, os=targets, common=common, images=[
         dict(name=name, os=version, flavour=config.get('bundle_flavour', common['testing_flavour']))
-        for name, config in images.items() for version in targets
+        for name, config in definitions.items() for version in targets
         if version in config.get('os_versions', targets)
     ])
     result.update(timestamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d.%H%M%S'),
@@ -86,6 +87,18 @@ def plan(root, ref, mode='packages'):
                   config_digest=config_digest(root),
                   run=os.environ.get('GITHUB_RUN_ID', 'local') + '-' + os.environ.get('GITHUB_RUN_ATTEMPT', '1'),
                   repository=os.environ.get('GITHUB_REPOSITORY', 'local'), sources={}, completed=[])
+    roles = ['tools']
+    if mode in ('packages', 'release'):
+        roles += ['builder-' + version for version in targets]
+    if mode == 'release' and result['images']:
+        roles.append('imager')
+    if mode != 'validate':
+        result['toolchains'] = images or toolchains.resolve(result['implementation_sha'], roles, result['repository'])
+        for role in roles:
+            toolchains.verify(result['toolchains'][role], result['implementation_sha'], allow_local, role)
+    else:
+        result['toolchains'] = images or {}
+    result['local_toolchains'] = allow_local
     return result
 
 
@@ -111,7 +124,8 @@ def claim_release(config, client):
         raise RuntimeError(f'Final release {config["label"]} already exists; refusing to overwrite')
     client.put_object(Bucket=bucket, Key=prefix + 'release-claim.json', IfNoneMatch='*',
                       Body=json.dumps({key: config[key] for key in
-                                       ('repository', 'run', 'config_sha', 'implementation_sha', 'timestamp')}).encode(),
+                                       ('repository', 'run', 'config_sha', 'implementation_sha', 'timestamp')}
+                                      | {'toolchains': config.get('toolchains', {})}).encode(),
                       ContentType='application/json')
 
 
@@ -126,14 +140,18 @@ def verify_release_claim(config, client):
 
 
 class Build:
-    def __init__(self, config, force_mirror=False, rebuild=False, no_cache=False):
+    def __init__(self, config, force_mirror=False, rebuild=False):
         self.config = config
-        self.force_mirror, self.rebuild, self.no_cache = force_mirror, rebuild, no_cache
+        self.force_mirror, self.rebuild = force_mirror, rebuild
         self.root = Path.cwd()
         self.label, self.timestamp = config['label'], config['timestamp']
         self.apt = config['common']['apt_repo']
-        self.parent = f'tailor-parent:{config["run"]}'
         self.secret_dir = None
+
+    def image(self, role):
+        image = self.config['toolchains'][role]
+        toolchains.verify(image, self.config['implementation_sha'], self.config.get('local_toolchains', False), role)
+        return image
 
     def run(self, *args):
         subprocess.run([str(arg) for arg in args], check=True)
@@ -143,16 +161,15 @@ class Build:
         # Per-stage temporary files, never included in the Docker context.
         with tempfile.TemporaryDirectory(prefix='tailor-auth-', dir=os.environ.get('RUNNER_TEMP')) as directory:
             self.secret_dir = Path(directory)
-            values = [('AccessKeyId', 'aws_access_key_id', 'AWS_ACCESS_KEY_ID'),
-                      ('SecretAccessKey', 'aws_secret_access_key', 'AWS_SECRET_ACCESS_KEY'),
-                      ('Token', 'aws_session_token', 'AWS_SESSION_TOKEN'),
-                      ('Region', 'region', 'AWS_DEFAULT_REGION')]
+            values = [('AccessKeyId', 'AWS_ACCESS_KEY_ID'), ('SecretAccessKey', 'AWS_SECRET_ACCESS_KEY'),
+                      ('Token', 'AWS_SESSION_TOKEN')]
+            region = self.config['common'].get('apt_region', os.environ.get('AWS_DEFAULT_REGION', 'us-east-1'))
             for name, text in (
-                ('s3auth', '\n'.join(f'{apt} = {os.environ.get(env, "")}' for apt, _, env in values)),
-                ('aws', '[default]\n' + '\n'.join(f'{aws} = {os.environ.get(env, "")}' for _, aws, env in values)),
+                ('s3auth', '\n'.join(f'{apt} = {os.environ.get(env, "")}' for apt, env in values) + f'\nRegion = {region}\n'),
                 ('vault', os.environ.get('ANSIBLE_VAULT_PASS', '')),
                 ('gitconfig', '[url "https://x-access-token:' + os.environ.get('GITHUB_TOKEN', '') +
                  '@github.com/"]\n\tinsteadOf = ssh://git@github.com/\n\tinsteadOf = git@github.com:\n'),
+                ('rosdep-list', 'yaml file:///etc/ros/rosdep/rosdep.yaml\n'),
             ):
                 (self.secret_dir / name).write_text(text)
                 (self.secret_dir / name).chmod(0o600)
@@ -161,15 +178,16 @@ class Build:
             finally:
                 self.secret_dir = None
 
-    def container(self, image, *command, apt=False, aws=False, github=False, git_auth=False,
+    def container(self, image, *command, apt=False, aws=False, github=False, git_auth=False, rosdep=False,
                   signing=False, vault=False, privileged=False, workdir='/work'):
         args = ['docker', 'run', '--rm', '--user', '0', '-e', 'HOME=/home/tailor',
                 '-v', f'{self.root}:/work', '-w', workdir]
         if apt:
             args += ['-v', f'{self.secret_dir}/s3auth:/etc/apt/s3auth.conf:ro']
         if aws:
-            for name in ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AWS_DEFAULT_REGION'):
+            for name in ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN'):
                 args += ['-e', name]
+            args += ['-e', f'AWS_DEFAULT_REGION={self.config["common"].get("apt_region", "us-east-1")}']
         if signing:
             args += ['-v', f'{os.environ["TAILOR_GPG_DIR"]}:/gpg:ro']
         if vault:
@@ -179,22 +197,13 @@ class Build:
         if git_auth:
             args += ['-v', f'{self.secret_dir}/gitconfig:/root/.gitconfig:ro',
                      '-v', f'{self.secret_dir}/gitconfig:/home/tailor/.gitconfig:ro']
+        if rosdep:
+            args += ['-v', f'{self.root}/rosdistro/rosdep/rosdep.yaml:/etc/ros/rosdep/rosdep.yaml:ro',
+                     '-v', f'{self.secret_dir}/rosdep-list:/etc/ros/rosdep/sources.list.d/10-tailor.list:ro']
         if privileged:
             args += ['--privileged', '-v', '/var/run/docker.sock:/var/run/docker.sock',
                      '-v', '/dev:/dev', '-v', '/lib/modules:/lib/modules:ro', '-v', '/boot:/boot:ro']
         self.run(*args, image, *command)
-
-    def docker_build(self, image, dockerfile, context='.', authenticated=False, **build_args):
-        shutil.copyfile('tailor-meta/ci/dockerignore', Path(context) / '.dockerignore')
-        args = ['docker', 'build', '-t', image, '-f', dockerfile]
-        if self.no_cache:
-            args += ['--no-cache']
-        for key, value in build_args.items():
-            args += ['--build-arg', f'{key}={value}']
-        if authenticated:
-            args += ['--secret', f'id=s3auth,src={self.secret_dir}/s3auth',
-                     '--secret', f'id=aws,src={self.secret_dir}/aws']
-        self.run(*args, context)
 
     def execute(self, stage):
         mode = self.config['mode']
@@ -223,12 +232,11 @@ class Build:
         # Docker writes root-owned files, but later host steps must be able to
         # create the packaging context beside them.
         Path('workspace').mkdir(exist_ok=True)
-        self.docker_build(self.parent, 'tailor-meta/environment/distro/Dockerfile',
-                          APT_REFRESH_KEY=self.timestamp[:6])
-        self.container(self.parent, 'create_recipes', '--recipes', 'rosdistro/config/recipes.yaml',
+        image = self.image('tools')
+        self.container(image, 'create_recipes', '--recipes', 'rosdistro/config/recipes.yaml',
                        '--recipes-dir', 'workspace/recipes', '--release-track', self.config['track'],
                        '--release-label', self.label, '--debian-version', self.timestamp)
-        self.container(self.parent, 'bash', '-ec',
+        self.container(image, 'bash', '-ec',
                        'pull_distro_repositories --src-dir workspace/src --github-key "$GITHUB_TOKEN" '
                        '--recipes rosdistro/config/recipes.yaml --rosdistro-index rosdistro/rosdistro/index.yaml --clean',
                        github=True)
@@ -239,44 +247,38 @@ class Build:
 
     def mirror(self):
         for version in self.config['os']:
-            self.container(self.parent, 'bash', '-ec', 'mirror_upstream "$@" --keys /gpg/*.key', 'mirror',
+            self.container(self.image('tools'), 'bash', '-ec', 'mirror_upstream "$@" --keys /gpg/*.key', 'mirror',
                            'rosdistro/config/upstream.yaml', '--version', self.timestamp, '--apt-repo', self.apt,
                            '--release-label', self.label, '--distribution', version, '--publish',
                            *(['--force-mirror'] if self.force_mirror else []), aws=True, signing=True)
 
     def graph(self):
-        self.container(self.parent, 'generate_graphs', '--recipe', 'rosdistro/config/recipes.yaml',
+        self.container(self.image('tools'), 'bash', '-ec', 'rosdep update; exec generate_graphs "$@"', 'graphs',
+                       '--recipe', 'rosdistro/config/recipes.yaml',
                        '--release-label', self.label, '--package-release-label', self.label,
                        '--timestamp', self.timestamp, '--workspace', 'workspace',
-                       '--apt-configs', '/etc/apt/s3auth.conf', apt=True, aws=True)
+                       '--apt-configs', '/etc/apt/s3auth.conf', apt=True, aws=True, rosdep=True)
 
     def packages(self):
-        shutil.copytree('tailor-meta', 'workspace/tailor-meta', ignore=shutil.ignore_patterns('.git', '__pycache__'))
         recipes = 'rosdistro/config/recipes.yaml'
         for version in self.config['os']:
             graph = f'workspace/graphs/ubuntu-{version}-graph.yaml'
-            self.container(self.parent, 'get_dependency_list', '--graph', graph, '--recipe', recipes,
+            self.container(self.image('tools'), 'get_dependency_list', '--graph', graph, '--recipe', recipes,
                            '--workspace', 'workspace', apt=True)
-            # Build all graph packages, not just a hard-coded "dev" flavour.
-            dependencies = Path(f'workspace/dependencies/all-{version}-{self.label}-dependencies.txt')
-            image = f'tailor-package:{version}-{self.config["run"]}'
-            self.docker_build(image, f'workspace/debian/Dockerfile-{version}', 'workspace', authenticated=True,
-                              UNION_BUILD_DEPENDS=' '.join(sorted(set(dependencies.read_text().splitlines()))),
-                              UNION_RUN_DEPENDS='', ORGANIZATION=self.config['common']['organization'],
-                              APT_REFRESH_KEY=self.timestamp)
-            root = Path('builds') / version
-            (root / 'workspace').mkdir(parents=True, exist_ok=True)
-            (root / 'workspace/src').symlink_to('/work/workspace/src', target_is_directory=True)
-            self.container(image, 'bash', '/work/tailor-meta/ci/build-os.sh', '/work/' + graph,
-                           '/work/' + recipes, version, str(self.rebuild).lower(),
-                           apt=True, git_auth=True, workdir='/work/' + str(root))
-            destination = Path('packages') / version
-            destination.mkdir(parents=True, exist_ok=True)
-            for deb in root.glob('*.deb'):
-                deb.rename(destination / deb.name)
-            self.config.setdefault('packages', {})[version] = {
-                path.name: file_digest(path) for path in destination.glob('*.deb')
-            }
+            self.build_os(version)
+
+    def build_os(self, version):
+        if self.config['mode'] not in ('packages', 'release') or 'graph' not in self.config['completed']:
+            raise ValueError('build-os requires package/release mode and resolved graphs')
+        if version not in self.config['os']:
+            raise ValueError(f'{version} is not in the build plan')
+        if version in self.config.get('packages', {}):
+            raise ValueError(f'{version} packages already built; refusing accidental replay')
+        self.container(self.image('builder-' + version), 'tailor-build-os', '--plan', '/work/build-plan.json',
+                       '--os', version, *(['--rebuild'] if self.rebuild else []),
+                       apt=bool(self.apt), aws=bool(self.apt), git_auth=bool(os.environ.get('GITHUB_TOKEN')))
+        checksums = Path('builds') / version / 'package-checksums.json'
+        self.config.setdefault('packages', {})[version] = json.loads(checksums.read_text())
 
     def publish(self):
         # Every OS completed before this stage. Validate the package snapshot
@@ -287,7 +289,7 @@ class Build:
             if actual != self.config['packages'][version]:
                 raise ValueError(f'Package snapshot changed for {version}')
         for version in self.config['os']:
-            self.container(self.parent, 'bash', '-ec',
+            self.container(self.image('tools'), 'bash', '-ec',
                            'shopt -s nullglob; publish_packages *.deb "$@" --keys /gpg/*.key', 'publish',
                            '--release-label', self.label, '--apt-repo', self.apt, '--distribution', version,
                            '--organization', self.config['common']['organization'], *self.retention(),
@@ -299,10 +301,10 @@ class Build:
         self.run('aws', 's3', 'sync', 'workspace/dependencies', f'{self.apt}/{self.label}/dependencies',
                  '--exclude', '*', '--include', '*.txt')
         if self.config['kind'] != 'final':
-            self.container(self.parent, 's3_directory_cleanup', '--release-label', self.label,
+            self.container(self.image('tools'), 's3_directory_cleanup', '--release-label', self.label,
                            '--apt-repo', self.apt.removeprefix('s3://'), *self.retention(), aws=True)
             for version in self.config['os']:
-                self.container(self.parent, 's3_versions_cleanup', '--release-label', self.label,
+                self.container(self.image('tools'), 's3_versions_cleanup', '--release-label', self.label,
                                '--apt-repo', self.apt.removeprefix('s3://'), '--distribution', version, aws=True)
         self.invalidate(f'/{self.label}/ubuntu/dists/*')
 
@@ -319,57 +321,42 @@ class Build:
     def images(self):
         if not self.config['images']:
             return
-        common = self.config['common']
-        image = f'tailor-image:{self.config["run"]}'
-        self.docker_build(image, 'tailor-meta/environment/image/Dockerfile', authenticated=True,
-                          APT_REPO=self.apt, APT_REGION=common.get('apt_region', 'us-east-1'),
-                          RELEASE_LABEL=self.label, ORGANIZATION=common['organization'],
-                          FLAVOUR=common['build_flavour'], BUNDLE_ROOT=f'/opt/{common["organization"]}/{self.label}',
-                          APT_REFRESH_KEY=self.timestamp)
-        for target in self.config['images']:
-            self.container(image, 'create_image', '--name', target['name'], '--distribution', target['os'],
-                           '--apt-repo', self.apt.removeprefix('s3://'), '--release-label', self.label,
-                           '--flavour', target['flavour'], '--organization', common['organization'],
-                           '--docker-registry', common['docker_registry'], '--rosdistro-path', '/rosdistro',
-                           '--timestamp', self.timestamp, '--publish', privileged=True, apt=True, aws=True, vault=True)
-        if self.config['kind'] != 'final':
-            self.container(image, 'cleanup_images', '--release-label', self.label,
-                           '--apt-repo', self.apt.removeprefix('s3://'), '--organization', common['organization'],
-                           *self.retention(), aws=True)
+        self.container(self.image('imager'), 'python3', '-m', 'tailor_meta.build_images',
+                       '--plan', '/work/build-plan.json', privileged=True, apt=True, aws=True, vault=True)
         self.invalidate(f'/{self.label}/images/index')
-
-    def cleanup(self):
-        images = [self.parent, f'tailor-image:{self.config["run"]}'] + [
-            f'tailor-package:{version}-{self.config["run"]}' for version in self.config['os']]
-        for image in images:
-            subprocess.run(['docker', 'image', 'rm', image], check=False)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('stage', choices=('plan', 'cleanup') + STAGES)
+    parser.add_argument('stage', choices=('plan', 'build-os') + STAGES)
     parser.add_argument('--plan', type=Path, default=Path('build-plan.json'))
     parser.add_argument('--mode', choices=MODES, default='packages')
     parser.add_argument('--ref', default=os.environ.get('GITHUB_REF', 'refs/heads/master'))
     parser.add_argument('--force-mirror', action='store_true')
     parser.add_argument('--rebuild', action='store_true')
-    parser.add_argument('--no-cache', action='store_true')
+    parser.add_argument('--os')
+    parser.add_argument('--toolchains', type=Path, help='Pre-resolved digest map; normally resolved from GHCR')
+    parser.add_argument('--allow-local-toolchains', action='store_true', help='CI fixtures only')
     args = parser.parse_args()
     if args.stage == 'plan':
         if args.plan.exists():
             raise ValueError('A plan already exists; do not change identity mid-build')
-        save_plan(args.plan, plan(Path('rosdistro'), args.ref, args.mode))
+        images = json.loads(args.toolchains.read_text()) if args.toolchains else None
+        save_plan(args.plan, plan(Path('rosdistro'), args.ref, args.mode, images, args.allow_local_toolchains))
         return
     config = json.loads(args.plan.read_text())
-    build = Build(config, args.force_mirror, args.rebuild, args.no_cache)
-    if args.stage == 'cleanup':
-        build.cleanup()
-        return
+    build = Build(config, args.force_mirror, args.rebuild)
     if config_digest(Path('rosdistro')) != config['config_digest']:
         raise ValueError('Configuration changed after planning')
     if revision(Path(__file__).resolve().parents[1]) != config['implementation_sha']:
         raise ValueError('Implementation changed after planning')
-    build.execute(args.stage)
+    if args.stage == 'build-os':
+        with build.credentials():
+            build.build_os(args.os)
+        if all(version in config['packages'] for version in config['os']):
+            config['completed'].append('packages')
+    else:
+        build.execute(args.stage)
     save_plan(args.plan, config)
     if config['mode'] == 'release' and args.stage in ('publish', 'images'):
         build.run('aws', 's3', 'cp', args.plan, f'{build.apt}/{build.label}/build-plan.json')

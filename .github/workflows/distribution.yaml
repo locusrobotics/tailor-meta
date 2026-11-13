@@ -12,9 +12,6 @@ on:
       force_mirror:
         type: boolean
         default: false
-      invalidate_docker_cache:
-        type: boolean
-        default: false
       invalidate_colcon_cache:
         type: boolean
         default: false
@@ -87,28 +84,19 @@ jobs:
           ref: ${{ inputs.tailor_meta }}
           path: tailor-meta
           persist-credentials: false
-      - name: Create immutable build identity
-        env:
-          MODE: ${{ inputs.mode }}
-        run: |
-          python3 -m venv "$RUNNER_TEMP/tailor-venv"
-          "$RUNNER_TEMP/tailor-venv/bin/pip" install -e ./tailor-meta
-          echo "$RUNNER_TEMP/tailor-venv/bin" >> "$GITHUB_PATH"
-          mkdir "$BUILD_DIR"
-          cp -a rosdistro tailor-meta "$BUILD_DIR/"
-          cd "$BUILD_DIR"
-          tailor_actions plan --mode "$MODE"
+      - uses: ./tailor-meta/.github/actions/setup
+        id: setup
+        with:
+          prepare: 'true'
+          mode: ${{ inputs.mode }}
       - name: Fetch and record source revisions
+        working-directory: ${{ steps.setup.outputs.directory }}
         env:
           GITHUB_TOKEN: ${{ secrets.TAILOR_SOURCE_TOKEN }}
-          NO_CACHE: ${{ inputs.invalidate_docker_cache }}
-        run: |
-          cd "$BUILD_DIR"
-          args=()
-          [[ "$NO_CACHE" != true ]] || args+=(--no-cache)
-          tailor_actions fetch "${args[@]}"
+        run: tailor_actions fetch
       - name: Publish dependency mirrors
         if: inputs.mode == 'release'
+        working-directory: ${{ steps.setup.outputs.directory }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -116,56 +104,47 @@ jobs:
           TAILOR_GPG_DIR: ${{ vars.TAILOR_GPG_DIR }}
           FORCE_MIRROR: ${{ inputs.force_mirror }}
         run: |
-          cd "$BUILD_DIR"
           args=()
           [[ "$FORCE_MIRROR" != true ]] || args+=(--force-mirror)
           tailor_actions mirror "${args[@]}"
       - name: Resolve package graphs
+        working-directory: ${{ steps.setup.outputs.directory }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_READ_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_READ_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_READ_SESSION_TOKEN }}
-        run: |
-          cd "$BUILD_DIR"
-          tailor_actions graph
+        run: tailor_actions graph
       - name: Build all OS package sets
         if: inputs.mode != 'graph'
+        working-directory: ${{ steps.setup.outputs.directory }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_READ_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_READ_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_READ_SESSION_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.TAILOR_SOURCE_TOKEN }}
           REBUILD: ${{ inputs.invalidate_colcon_cache }}
-          NO_CACHE: ${{ inputs.invalidate_docker_cache }}
         run: |
-          cd "$BUILD_DIR"
           args=()
           [[ "$REBUILD" != true ]] || args+=(--rebuild)
-          [[ "$NO_CACHE" != true ]] || args+=(--no-cache)
           tailor_actions packages "${args[@]}"
       - name: Publish verified package sets
         if: inputs.mode == 'release'
+        working-directory: ${{ steps.setup.outputs.directory }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           TAILOR_GPG_DIR: ${{ vars.TAILOR_GPG_DIR }}
-        run: |
-          cd "$BUILD_DIR"
-          tailor_actions publish
+        run: tailor_actions publish
       - name: Build and publish images
         if: inputs.mode == 'release'
+        working-directory: ${{ steps.setup.outputs.directory }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           ANSIBLE_VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASS }}
-          NO_CACHE: ${{ inputs.invalidate_docker_cache }}
-        run: |
-          cd "$BUILD_DIR"
-          args=()
-          [[ "$NO_CACHE" != true ]] || args+=(--no-cache)
-          tailor_actions images "${args[@]}"
+        run: tailor_actions images
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -186,9 +165,6 @@ jobs:
       - name: Remove run-local outputs
         if: always()
         run: |
-          if [[ -f "$BUILD_DIR/build-plan.json" ]]; then
-            (cd "$BUILD_DIR" && tailor_actions cleanup)
-          fi
           case "$BUILD_DIR" in
             "$GITHUB_WORKSPACE/build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT") sudo rm -rf -- "$BUILD_DIR" ;;
             *) exit 1 ;;

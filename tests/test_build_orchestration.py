@@ -141,5 +141,14 @@ def test_source_branch_jobs_are_aggregated_without_collisions():
 
 
 def test_build_script_preserves_underlay_order():
-    script = Path('ci/build-os.sh').read_text()
-    assert script.index('--ros-distro ros1') < script.index('--ros-distro ros2') < script.index('build_bundles')
+    import inspect
+    from tailor_meta.build_os import build_os
+    script = inspect.getsource(build_os)
+    assert "('ros1', 'ros2')" in script
+    assert script.index("run('build_packages'") < script.index("run('build_bundles'")
+
+
+def test_distribution_never_builds_toolchain_images():
+    import inspect
+    assert not hasattr(Build, 'docker_build')
+    assert 'docker_build' not in inspect.getsource(Build)

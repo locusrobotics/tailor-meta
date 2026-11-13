@@ -31,7 +31,7 @@ jobs:
           ref: ${{ inputs.tailor_meta }}
           path: tailor-meta
           persist-credentials: false
-      - run: pip install ./tailor-meta
+      - uses: ./tailor-meta/.github/actions/setup
       - name: Generate or apply aggregated stubs
         env:
           GITHUB_TOKEN: ${{ secrets.TAILOR_MAINTENANCE_TOKEN }}

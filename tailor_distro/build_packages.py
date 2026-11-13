@@ -442,6 +442,8 @@ def main():
         "CARGO_HOME": cargo_home,
         "RUSTUP_INIT_SKIP_PATH_CHECK": "yes",
     }
+    if os.environ.get('CCACHE_DIR'):
+        clean_env['CCACHE_DIR'] = os.environ['CCACHE_DIR']
     clean_env.update({k: str(v) for k, v in env.items()})
 
     # Print the resolved Cargo path from the build environment for debugging

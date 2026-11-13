@@ -1,0 +1,106 @@
+name: Tailor CI
+on:
+  push:
+  pull_request:
+  workflow_call:
+    inputs:
+      tailor_meta:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  configure:
+    runs-on: ubuntu-24.04
+    outputs:
+      versions: ${{ steps.matrix.outputs.versions }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: configuration
+          persist-credentials: false
+      - id: matrix
+        run: |
+          pip install PyYAML==6.0.2
+          python3 - <<'PY'
+          import json, os, platform
+          from pathlib import Path
+          import yaml
+          recipes = Path('configuration/config/recipes.yaml')
+          versions = (yaml.safe_load(recipes.read_text())['os']['ubuntu'] if recipes.exists()
+                      else [platform.freedesktop_os_release()['VERSION_CODENAME']])
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print('versions=' + json.dumps(versions), file=output)
+          PY
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta || github.sha }}
+          path: tailor-meta
+          persist-credentials: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-apt python3-venv
+      - uses: ./tailor-meta/.github/actions/setup
+      - name: Unit tests and Python compilation
+        working-directory: tailor-meta
+        run: |
+          pip install pytest==8.4.1
+          python -m compileall -q tailor_meta tailor_distro tailor_image
+          pytest -o addopts= tests
+      - name: Workflow lint
+        working-directory: tailor-meta
+        run: |
+          curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck= .github/workflows/*.yaml
+  smoke:
+    needs: configure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.configure.outputs.versions) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: rosdistro
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta || github.sha }}
+          path: tailor-meta
+          persist-credentials: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-apt python3-venv
+      - uses: ./tailor-meta/.github/actions/setup
+      - name: Build the production builder (without publishing)
+        env:
+          OS_VERSION: ${{ matrix.os }}
+        run: |
+          sha=$(git -C tailor-meta rev-parse HEAD)
+          docker build --target builder --build-arg "OS_VERSION=$OS_VERSION" --build-arg "IMPLEMENTATION_SHA=$sha" \
+            -f tailor-meta/environment/toolchains/Dockerfile -t tailor-builder tailor-meta
+      - name: Production build-os with fixture inputs
+        env:
+          OS_VERSION: ${{ matrix.os }}
+        run: python tailor-meta/ci/smoke/build.py --image tailor-builder --os "$OS_VERSION" --configuration rosdistro
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}
+          retention-days: 7
+          path: |
+            output/build-plan.json
+            output/packages/**/*.deb
+            output/builds/*/build-report-*.yaml
+            output/smoke-result.json
+            output/builds/*/log/**

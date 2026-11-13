@@ -1,29 +1,104 @@
 # tailor-meta
 
-Tailor's centralized GitHub Actions buildfarm: distribution packaging, image
-provisioning, publication, and source CI. `rosdistro` remains the release source
-of truth. Consumer repositories contain only reusable-workflow caller stubs.
+Centralized Actions, toolchains, and builders for Tailor. Consumers contain
+configuration and thin workflow callers. Imported tools retain their Python
+namespaces and CLI names; sibling repositories remain untouched. See
+[ci/IMPORTS.md](ci/IMPORTS.md) for provenance.
 
-The former `tailor-distro` and `tailor-image` implementations live here under
-their original Python namespaces and CLI names. The sibling repositories remain
-untouched. See [ci/IMPORTS.md](ci/IMPORTS.md) for provenance.
+## Architecture
 
-## Workflows
+```text
+tailor-meta change
+  ├─ ci.yaml: unit/lint tests + native-host packaging smoke test
+  └─ toolchain-images.yaml: publish generic tools/imager to GHCR
 
-| Reusable workflow | Purpose |
+rosdistro configuration change
+  ├─ toolchain-images.yaml: caller-scoped builders for recipe-selected OSes
+  └─ distribution.yaml
+       plan + pull immutable digests
+       fetch → mirror → graph → build every OS → publish → images
+
+source repositories → source.yaml
+source stub management → maintain-sources.yaml
+```
+
+These are the five workflows in `.github/workflows/`. No standalone smoke
+workflow or check-to-Python workflow chain remains. CI can also be called by
+toydistro's hosted pilot. Source maintenance is independent of build credentials.
+
+## Toolchains, built once per implementation
+
+`environment/toolchains/Dockerfile` has three targets:
+
+| GHCR package suffix | Contents |
 | --- | --- |
-| `distribution.yaml` | Validate, plan, fetch, mirror, graph, package, publish, image |
-| `maintain-sources.yaml` | Generate/apply source stubs independently of build credentials |
-| `source.yaml` | Dependency checks, colcon build/test, test-result enforcement |
-| `smoke.yaml` | Hosted Jammy/Noble packaging integration test without private credentials |
-| `python.yaml` | Unit tests and Actions linting |
+| `tailor-meta-tools` | Source/graph tools, aptly, deb-s3 |
+| `<configuration-repository>-builder` | Compilers, colcon, Debian packaging, Rust; OS tags selected by caller recipes |
+| `tailor-meta-imager` | Ansible, Packer, Docker provisioning tools on the host's native OS |
 
-All live under `.github/workflows/`. Pin the caller's `uses` ref and
-`tailor_meta` input to the **same immutable implementation SHA**:
+For example, toydistro owns `ghcr.io/locusrobotics/toydistro-builder`; rosdistro
+owns its own builder package. **No target OS list or OS-specific builder package
+lives in tailor-meta.** The reusable image factory reads the caller's
+`config/recipes.yaml`; the generic Dockerfile only takes an OS parameter.
+Tools/imager use the CI host's native OS independently of distribution targets.
+
+Images contain no distro configuration,
+source archives, bundles, signing keys, or credentials. `toolchain-images.yaml`
+publishes SHA discovery tags using the Actions token. Existing SHA tags are not
+overwritten; rebuilding toolchains requires a new implementation commit. GHA
+BuildKit caches accelerate publication.
+
+Set the GHCR packages **public** before distribution cutover. GitHub may create
+them as private even though the source repository is public. Consumers should
+pull toolchains anonymously rather than needing ECR or registry secrets.
+
+Planning resolves discovery tags to immutable `@sha256:...` references and
+verifies implementation/role/OS labels. The build plan records those digests;
+later stages use them, never mutable tags. Explicit local image IDs are allowed
+only for CI fixtures.
+
+Distribution runs no longer build environment images or generate packaging
+Dockerfiles. They install distro dependencies inside disposable containers.
+Private packages and authentication are not committed back to toolchain images.
+
+## One build-os path
+
+`tailor_actions build-os --plan build-plan.json --os <configured-os>` starts one pinned
+builder container. Its `tailor-build-os` command owns workspace preparation,
+dependency installation, ROS 1 → ROS 2 → bundles, and package output/checksums.
+
+`tailor_actions packages` invokes this sequentially for all configured OS targets.
+All must succeed before publication starts. The commands share one container per
+OS to preserve installed underlays; build/install/optinstall trees remain
+OS-specific. Sources use a stable `/work` mount. Dependencies cover every graph
+package and do not require a `dev` flavour.
+
+CI smoke tests prepare two small CMake fixtures and resolved graph inputs, then
+use **the same Build.build_os path and production builder Dockerfile**. They
+install seven generated debs in a fresh builder container and execute the ROS 2
+binary requiring the ROS 1 package. Caller CI tests OSes from its recipes;
+tailor-meta's own CI tests only the runner's native OS. This tests runtime dependency
+setup, filesystem paths, packaging, installation, and underlays. Private source
+fetching, signing, AWS publication, and production image provisioning still need
+buildfarm verification.
+
+## Actions structure
+
+Pin the caller `uses` ref and `tailor_meta` input to the **same commit**. Call the
+image factory first with `packages: write` so caller-scoped builders are ready.
+Generic tools/imager must already have finished publishing from tailor-meta:
 
 ```yaml
 jobs:
+  builders:
+    uses: locusrobotics/tailor-meta/.github/workflows/toolchain-images.yaml@<sha>
+    permissions:
+      contents: read
+      packages: write
+    with:
+      tailor_meta: <sha>
   tailor:
+    needs: builders
     uses: locusrobotics/tailor-meta/.github/workflows/distribution.yaml@<sha>
     with:
       tailor_meta: <sha>
@@ -31,150 +106,82 @@ jobs:
     secrets: inherit
 ```
 
-`tailor-meta` is public, so hosted validation and smoke tests can check out its
-pinned implementation without cross-repository secrets. PR configuration is
-parsed with safe YAML and sandboxed Jinja; it never runs on the buildfarm.
+`.github/actions/setup` handles Python installation and run-local workspace/plan
+preparation. Actions owns triggers, concurrency, runners, scoped credentials,
+visible stage steps, and artifacts. Python owns configuration interpretation,
+container execution, checksums, and final-release claims.
 
-## Modes and stages
-
-| Mode | Work performed | Remote writes |
+| Mode | Work | Remote writes |
 | --- | --- | --- |
-| `validate` | Offline configuration/template parsing on a hosted runner | None |
-| `graph` | Plan, fetch sources, resolve graphs using published dependencies | None |
-| `packages` | Graph mode plus all OS package sets | None |
-| `release` | Fetch, publish mirrors, graph, build every OS, publish packages, build/publish images | Yes |
+| `validate` | Safe YAML/sandboxed Jinja checks on hosted runners | None |
+| `graph` | Fetch and graph using existing published dependencies | None |
+| `packages` | Graph plus every OS package set | None |
+| `release` | Mirror, graph, packages, publish, provision images | Yes |
 
-`force_mirror`, `invalidate_docker_cache`, and `invalidate_colcon_cache` remain
-independent controls. Read-only modes need an existing dependency mirror;
-`release` bootstraps new labels. Images consume newly published packages, so
-image provisioning belongs to `release` mode.
+Read-only modes need existing dependency mirrors. `force_mirror` and
+`invalidate_colcon_cache` are independent. Docker-cache invalidation is no longer
+a distribution input: toolchains have their own build workflow. Dependencies
+install afresh at runtime; compiler caches are run-local for now.
 
-Each stage is a separate Actions step and `tailor_actions` command. One
-`build-plan.json` records the timestamp, configuration/implementation commits,
-configuration digest, resolved source revisions, package checksums, and completed
-stages. Subsequent stages load it instead of recomputing build identity, reject
-configuration changes, and enforce predecessor success. The plan is archived
-on failure and uploaded to S3 after publication. A failed stage is not marked
-complete. Rerunning the workflow creates a new run attempt, not an implicit
-resume of partially published artifacts.
+One `build-plan.json` records timestamp, configuration/implementation SHAs,
+configuration digest, toolchain digests, resolved sources, package checksums,
+and completed stages. It is archived on failure and uploaded after publication.
+All OS builds finish before publication, but multiple APT publications are not
+an atomic transaction: a publish-stage failure can still leave a partial label.
 
-All OS builds finish **before package publication starts**. Publishing two APT
-distributions is not an atomic transaction: a publication failure can still
-leave a partially published label. Build failures, however, cannot publish a
-successful OS early. ROS 1, ROS 2, and bundles share one container per OS;
-build/install/optinstall trees never cross OS boundaries. Dependency collection
-covers all graph packages, without requiring a flavour named `dev`.
+## Publication and credentials
 
-## Branch and release policy
+`master` publishes hotdog automatically (also nightly at 02:00 UTC);
+`feature/*` publishes artifacts for testing; `release/*` publishes candidates;
+tags publish immutable finals. PRs never run on privileged buildfarm runners.
+Publication approval remains a follow-up.
 
-* `master` → `hotdog`; automatic push and 02:00 UTC nightly publication.
-* `feature/name` → `feature-name`; **automatic publication for testing**.
-* `release/26.1` → `26.1-rc`; automatic candidate publication.
-* `26.1.0` tag → `26.1.0`; immutable final publication.
-* PRs → hosted validation only.
-
-Publication approval is intentionally deferred. The workflow currently has no
-GitHub environment approval gate.
-
-### Immutable final releases
-
-Before a final release writes its mirror, it checks for existing objects under
-the release label and atomically creates `release-claim.json` with S3
-`If-None-Match: *`. Legacy published labels and concurrent claims are rejected.
-Later write stages verify ownership against repository, run attempt, and both
-commit SHAs. Failed claims remain: retrying the same tag must not overwrite a
-partially published final release. Recovery requires explicit operator action,
-or a new release version. Do not remove claims automatically.
-
-Final publication disables package/image retention deletion. Hotdog/features
-retain 30 days/30 versions; candidates retain 30 versions without an age limit.
-These are separate from GitHub artifact retention (30 days diagnostics, 7 days
-nonpublishing packages/smoke results). The claim is enforced by this pipeline;
-legacy Jenkins/manual publishers must be disabled and IAM access scoped so they
-cannot bypass it. Publication roles require conditional S3 PutObject access.
-
-## Credentials and runners
+Final publication reserves an S3 `release-claim.json` with conditional
+`If-None-Match: *`, rejecting existing legacy artifacts and competing/rerun
+claims. Later writes verify ownership. Failed claims remain for deliberate
+operator recovery; they are not automatically removed. Disable legacy/manual
+writers and scope IAM so they cannot bypass this contract. Final deletion is
+disabled. Hotdog/features retain 30 days/30 versions; candidates retain 30
+versions without an age limit. GitHub artifacts have separate retention.
 
 Buildfarm stages require dedicated, preferably ephemeral Ubuntu amd64 runners
-with `self-hosted`, `linux`, `x64`, `tailor` labels, Python 3.12+, Docker/BuildKit,
-and the host modules/devices required by image provisioning. Source PR tests run
-on isolated GitHub-hosted runners, never these privileged runners.
-
-Credentials are scoped to Actions steps **and** container capabilities:
+labelled `self-hosted`, `linux`, `x64`, `tailor`, Python 3.12+, Docker, and the
+host modules/devices required by image provisioning. CI/source tests use isolated
+hosted runners. The buildfarm pulls toolchains; it does not build them.
 
 | Secret/variable | Scope |
 | --- | --- |
-| `TAILOR_SOURCE_TOKEN` | Read-only private source access in fetch/package stages |
+| `TAILOR_SOURCE_TOKEN` | Read-only private source fetching/build auth |
 | `AWS_READ_ACCESS_KEY_ID`, `AWS_READ_SECRET_ACCESS_KEY`, optional `AWS_READ_SESSION_TOKEN` | Graph/package dependency reads |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN` | Mirror/package/image publication only |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN` | Mirror/package/image publication |
 | `ANSIBLE_VAULT_PASS` | Image provisioning only |
-| `TAILOR_GPG_DIR` variable | Runner-local signing-key directory, mounted only for mirror/package publication |
-| `TAILOR_MAINTENANCE_TOKEN` | Separate maintenance job: write source contents/workflows; no buildfarm access |
+| `TAILOR_GPG_DIR` | Runner-local keys, mounted only for mirror/package signing |
+| `TAILOR_MAINTENANCE_TOKEN` | Independent source-stub write job |
 
-Use separate read/write AWS identities. Never put signing keys, credentials, or
-authenticated URLs into Git. Dockerfiles declare secret mounts directly;
-there is no runtime Dockerfile rewriting. APT credentials and Git URL rewriting
-are temporary runtime mounts, with Git auth mounted where the package builder's
-clean environment expects it. Build containers do not receive publishing AWS
-credentials, vault passwords, or signing keys. Build contexts use an allowlist
-and exclude source/build trees, `.git`, and caches.
+APT/Git/vault authentication uses temporary runtime mounts. Build containers
+never receive publication credentials, vault passwords, or signing keys. The
+imager installs the published build-flavour bundle at runtime before provisioning,
+instead of rebuilding an environment image. Product images still publish to the
+configured ECR destinations; GHCR is only for buildfarm tooling.
 
-OIDC roles and short-lived GitHub App token issuance are a follow-up deployment
-improvement; the current interface uses separate secret-backed identities.
-Docker keeps its normal local layer cache. Shared compiler/registry caches are
-also follow-up work; ephemeral runners currently use run-local compiler caches.
+## Maintenance and cutover
 
-## Source maintenance
+`maintain-sources.yaml` previews by default; `apply: true` directly updates
+configured source branches. `source.test_commits` selects repositories, not distro
+contents. Jobs aggregate by repository/branch to avoid ROS distro collisions.
+Source CI must use its own read-only credentials, not publication/maintenance
+identities. Fork private tests require a reviewed manual dispatch on a hosted runner.
 
-`maintain-sources.yaml` generates a preview by default; `apply: true` writes
-directly to configured source branches. This is intentional for the large
-repository fleet. `source.test_commits` selects repositories; it does not select
-distribution contents. Jobs are aggregated by GitHub repository **and source
-branch**, retaining one job per ROS distribution so shared branches do not
-overwrite each other's stubs. The generator is offline without `--deploy`:
+1. Publish the implementation and generic toolchains; call the image factory
+   from configuration repositories to publish their builders. Make GHCR packages public.
+2. Run CI/toydistro hosted checks, then graph/packages with read identities.
+3. Configure signing/publication identities and run a real toydistro feature release.
+4. Preview/apply source stubs, update required checks, and disable Jenkins jobs/hooks.
 
-```bash
-create_pipelines --rosdistro-index ../rosdistro/rosdistro/index.yaml \
-  --recipes ../rosdistro/config/recipes.yaml --meta-branch <sha> \
-  --release-track hotdog --release-label hotdog --output-dir /tmp/opencode/stubs
-```
-
-Source CI needs its own read-only AWS credentials (named `AWS_ACCESS_KEY_ID` and
-`AWS_SECRET_ACCESS_KEY`) and `TAILOR_SOURCE_TOKEN`. Never share publication or
-maintenance identities with source tests. Fork PRs skip private-environment
-tests automatically; after review a maintainer can dispatch `source_ref:
-pull/123/merge` on an isolated hosted runner. Native Actions checks replace the
-Jenkins status context; update branch protections during cutover.
-
-## Hosted toydistro pilot
-
-`locusrobotics/toydistro` branch `feature/github-actions-smoke` calls validation
-and `smoke.yaml` with an immutable implementation pin. Until infrastructure is
-configured, this pilot deliberately runs hosted checks rather than publishing.
-Its manual dispatch supports switching to the normal modes.
-
-The smoke test builds two tiny CMake fixture packages using the real
-`build_packages`/colcon Debian extension and `build_bundles`. The ROS 2 fixture
-requires a header installed by the ROS 1 fixture. It installs the generated
-debs, executes the resulting binary, and archives reports and artifacts on
-Jammy and Noble. It uses the caller's release label and configuration identity.
-This verifies container packaging/underlay behavior, not the full private
-toydistro source set, AWS signing/publication, or production image provisioning.
-
-## Cutover and follow-ups
-
-1. Publish the implementation SHA before pushing caller stubs that reference it.
-2. Run hosted validation/smoke tests, then graph and package builds with read-only
-   identities. Configure signing keys, publication identities, and buildfarm runners.
-3. Run a feature release in toydistro and inspect APT, images, plans, and reports
-   before production cutover. Final-tag reruns must be rejected.
-4. Apply source stubs directly after preview. Disable old Jenkins jobs/hooks and
-   update required checks; source Jenkinsfiles are not blindly deleted.
-
-Explicit follow-ups: publication approval gates; source-update PRs that
-**auto-merge once checks pass** (not manual merging across the fleet); external
-integration-test migration; distro-triggered source-test fan-out; Slack
-notifications; OIDC/App token provisioning; shared build caches.
+Explicit follow-ups: publication approvals, auto-merging source-update PRs once
+tests pass, external integration tests, distro-triggered source fan-out, Slack,
+OIDC/App tokens, and shared build caches. Sequential OS builds remain deliberate;
+a matrix can follow once an artifact-transfer/storage contract is chosen.
 
 ## Local checks
 
@@ -187,5 +194,5 @@ actionlint -shellcheck= .github/workflows/*.yaml
 ```
 
 Use Ubuntu system Python with `python3-apt` for graph tests. Python 3.10 remains
-supported in Jammy containers. Keep generated recipes/build outputs outside
-configuration repositories. No test command above publishes remotely.
+supported inside Jammy toolchains. Keep generated outputs outside configuration
+repositories; the local checks above never publish remotely.

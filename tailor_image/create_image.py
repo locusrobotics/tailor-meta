@@ -97,7 +97,7 @@ def create_image(name: str, distribution: str, apt_repo: str, release_label: str
         click.echo('Preparing build context...', err=True)
 
         # Run docker build command
-        container_name = 'default'
+        container_name = f'tailor-{os.environ.get("TAILOR_RUN", "local")}-{name}-{distribution}'
         run_command(['docker', 'rm', '-f', container_name], check=False)
         docker_build_cmd = (
             ['docker', 'build','--progress=plain','--target', 'runtime']

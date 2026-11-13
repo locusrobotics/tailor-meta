@@ -37,7 +37,7 @@ def test_image_matrix(tmp_path):
         'all': {}, 'limited': {'os_versions': ['noble', 'old'], 'bundle_flavour': 'support'},
     }}))
     with mock.patch('tailor_meta.actions.revision', return_value='a' * 40):
-        result = plan(tmp_path, 'refs/heads/master')
+        result = plan(tmp_path, 'refs/heads/master', mode='validate')
     assert result['images'] == [
         {'name': 'all', 'os': 'jammy', 'flavour': 'dev'},
         {'name': 'all', 'os': 'noble', 'flavour': 'dev'},
@@ -45,12 +45,8 @@ def test_image_matrix(tmp_path):
     ]
 
 
-@pytest.mark.parametrize('path', [
-    'environment/distro/Dockerfile', 'environment/image/Dockerfile',
-    'tailor_distro/debian_templates/Dockerfile.j2',
-])
-def test_secure_build_environment(path):
-    text = pathlib.Path(path).read_text()
+def test_secure_build_environment():
+    text = pathlib.Path('environment/toolchains/Dockerfile').read_text()
     assert 'ARG AWS_ACCESS_KEY_ID' not in text
     assert 'ARG AWS_SECRET_ACCESS_KEY' not in text
     assert 'ARG ANSIBLE_VAULT_PASS' not in text
@@ -58,9 +54,11 @@ def test_secure_build_environment(path):
     assert 'tee /home/tailor/.vault_pass.txt' not in text
     assert 'aws configure set aws_secret_access_key' not in text
     assert 'ENV AWS_ACCESS_KEY_ID' not in text
-    if path != 'environment/distro/Dockerfile':
-        assert 'id=s3auth,target=/etc/apt/s3auth.conf' in text
-    assert 'COPY tailor-meta /tailor-meta' in text
+    assert 'COPY . /tailor-meta' in text
+    assert 'COPY rosdistro' not in text
+    assert 'FROM base AS builder' in text
+    assert 'FROM base AS tools' in text
+    assert 'FROM base AS imager' in text
 
 
 def test_source_stub():
