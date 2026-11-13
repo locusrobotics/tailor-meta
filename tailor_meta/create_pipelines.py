@@ -33,7 +33,7 @@ def source_workflow(contexts):
     branches = sorted({context['source_branch'] for context in contexts})
     return yaml.safe_dump({
         'name': 'Tailor source checks',
-        'on': {'push': {'branches': branches}, 'pull_request': {'branches': branches}, 'workflow_dispatch': {
+        'on': {'push': {'branches': branches}, 'pull_request': {'branches': list(branches)}, 'workflow_dispatch': {
             'inputs': {'source_ref': {'description': 'Optional reviewed PR ref (pull/123/merge)',
                                       'type': 'string', 'default': ''}}}},
         'permissions': {'contents': 'read'}, 'jobs': jobs,

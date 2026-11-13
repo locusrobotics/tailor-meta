@@ -132,7 +132,9 @@ def test_publish_rejects_modified_package_set_before_remote_writes(tmp_path, mon
 def test_source_branch_jobs_are_aggregated_without_collisions():
     base = dict(source_branch='devel', tailor_meta='a' * 40, repository_name='example', release_label='hotdog',
                 release_track='hotdog', distributions=['noble'], docker_registry='example.invalid/ci')
-    workflow = yaml.safe_load(source_workflow([dict(base, rosdistro_name='ros1'), dict(base, rosdistro_name='ros2')]))
+    text = source_workflow([dict(base, rosdistro_name='ros1'), dict(base, rosdistro_name='ros2')])
+    assert '&id' not in text and '*id' not in text
+    workflow = yaml.safe_load(text)
     assert set(workflow['jobs']) == {'ros1', 'ros2'}
     assert workflow['on']['pull_request']['branches'] == ['devel']
     assert all('tailor_meta' not in job['with'] for job in workflow['jobs'].values())
