@@ -93,6 +93,10 @@ jobs:
         env:
           OS_VERSION: ${{ matrix.os }}
         run: python tailor-meta/ci/smoke/build.py --image tailor-builder --os "$OS_VERSION" --configuration rosdistro
+      - name: Credential-free central source worker isolation test
+        env:
+          OS_VERSION: ${{ matrix.os }}
+        run: python tailor-meta/ci/smoke/source_worker.py --image tailor-builder --os "$OS_VERSION"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -104,3 +108,4 @@ jobs:
             output/builds/*/build-report-*.yaml
             output/smoke-result.json
             output/builds/*/log/**
+            source-worker-smoke/reports/**/*.xml
