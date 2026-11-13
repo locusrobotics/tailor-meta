@@ -22,7 +22,7 @@ def test_image_revision_must_match_implementation():
 
 
 def test_resolve_records_digest_not_sha_discovery_tag():
-    reference = 'ghcr.io/locusrobotics/tailor-meta-tools@sha256:' + 'a' * 64
+    reference = 'ghcr.io/locusrobotics/tailor-meta@sha256:' + 'a' * 64
     image = {'RepoDigests': [reference], 'Config': {'Labels': {
         'org.opencontainers.image.revision': 'sha', 'io.tailor.role': 'tools'}}}
     with mock.patch('tailor_meta.toolchains.subprocess.run'), mock.patch('tailor_meta.toolchains.inspect', return_value=image):
@@ -37,11 +37,11 @@ def test_toolchain_cannot_substitute_the_wrong_os():
 
 
 def test_builders_are_resolved_from_consumer_namespace_not_tailor_meta():
-    reference = 'ghcr.io/locusrobotics/toydistro-builder@sha256:' + 'a' * 64
+    reference = 'ghcr.io/locusrobotics/toydistro@sha256:' + 'a' * 64
     image = {'RepoDigests': [reference], 'Config': {'Labels': {
         'org.opencontainers.image.revision': 'sha', 'io.tailor.role': 'builder', 'io.tailor.os': 'example-os'}}}
     with mock.patch('tailor_meta.toolchains.subprocess.run') as run, \
             mock.patch('tailor_meta.toolchains.inspect', return_value=image):
         result = resolve('sha', ['builder-example-os'], 'locusrobotics/toydistro')
     assert result == {'builder-example-os': reference}
-    assert run.call_args.args[0] == ['docker', 'pull', 'ghcr.io/locusrobotics/toydistro-builder:sha-example-os']
+    assert run.call_args.args[0] == ['docker', 'pull', 'ghcr.io/locusrobotics/toydistro:builder-sha-example-os']

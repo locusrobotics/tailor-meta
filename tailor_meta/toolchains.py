@@ -27,11 +27,11 @@ def resolve(implementation_sha, roles, repository=None):
         if role.startswith('builder-'):
             if not repository or repository == 'local':
                 raise ValueError('Builder images must be scoped to a configuration repository')
-            image_repository = f'ghcr.io/{repository.lower()}-builder'
-            tag = f'{image_repository}:{implementation_sha}-{role.removeprefix("builder-")}'
+            image_repository = f'ghcr.io/{repository.lower()}'
+            tag = f'{image_repository}:builder-{implementation_sha}-{role.removeprefix("builder-")}'
         else:
-            image_repository = f'{REGISTRY}-{role}'
-            tag = f'{image_repository}:{implementation_sha}'
+            image_repository = REGISTRY
+            tag = f'{image_repository}:{role}-{implementation_sha}'
         subprocess.run(['docker', 'pull', tag], check=True)
         image = inspect(tag)
         candidates = [ref for ref in image.get('RepoDigests', []) if ref.startswith(image_repository + '@')]

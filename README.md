@@ -30,14 +30,15 @@ toydistro's hosted pilot. Source maintenance is independent of build credentials
 
 `environment/toolchains/Dockerfile` has three targets:
 
-| GHCR package suffix | Contents |
+| GHCR package/tag | Contents |
 | --- | --- |
-| `tailor-meta-tools` | Source/graph tools, aptly, deb-s3 |
-| `<configuration-repository>-builder` | Compilers, colcon, Debian packaging, Rust; OS tags selected by caller recipes |
-| `tailor-meta-imager` | Ansible, Packer, Docker provisioning tools on the host's native OS |
+| `tailor-meta:tools-<sha>` | Source/graph tools, aptly, deb-s3 |
+| `<configuration-repository>:builder-<sha>-<os>` | Compilers, colcon, Debian packaging, Rust; OS tags selected by caller recipes |
+| `tailor-meta:imager-<sha>` | Ansible, Packer, Docker provisioning tools on the host's native OS |
 
-For example, toydistro owns `ghcr.io/locusrobotics/toydistro-builder`; rosdistro
-owns its own builder package. **No target OS list or OS-specific builder package
+There is one GHCR package per existing repository, not separate `-builder`,
+`-tools`, or `-imager` packages. Toydistro uses `ghcr.io/locusrobotics/toydistro`
+with builder tags; rosdistro uses its own package. **No target OS list or OS-specific builder package
 lives in tailor-meta.** The reusable image factory reads the caller's
 `config/recipes.yaml`; the generic Dockerfile only takes an OS parameter.
 Tools/imager use the CI host's native OS independently of distribution targets.

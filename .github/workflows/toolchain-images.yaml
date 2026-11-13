@@ -39,12 +39,12 @@ jobs:
           if recipes.exists():
               versions = yaml.safe_load(recipes.read_text())['os']['ubuntu']
               entries = [dict(target='builder', os=version, cache=version,
-                              image=f'ghcr.io/{repo}-builder:{sha}-{version}') for version in versions]
+                              image=f'ghcr.io/{repo}:builder-{sha}-{version}') for version in versions]
           elif repo == 'locusrobotics/tailor-meta':
               # Generic management/provisioning tools use the host's native OS.
               native = platform.freedesktop_os_release()['VERSION_CODENAME']
               entries = [dict(target=target, os=native, cache=target,
-                              image=f'ghcr.io/{repo}-{target}:{sha}') for target in ('tools', 'imager')]
+                              image=f'ghcr.io/{repo}:{target}-{sha}') for target in ('tools', 'imager')]
           else:
               raise SystemExit('Caller must provide config/recipes.yaml')
           if not entries:
