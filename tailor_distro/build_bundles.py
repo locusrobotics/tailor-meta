@@ -2,6 +2,7 @@ import argparse
 import pathlib
 import shutil
 import subprocess
+import sys
 import jinja2
 import os
 
@@ -100,7 +101,7 @@ def create_environment_packages(
     # so everything sources correctly.
     colcon1 = subprocess.Popen(
         [
-            "colcon",
+            sys.executable, "-m", "colcon",
             "build",
             "--install-base", ros1_root,
             "--base-paths", ros1_root,
@@ -118,7 +119,7 @@ def create_environment_packages(
     # where if you source ROS2 it also sources ROS1 for you.
     colcon2 = subprocess.Popen(
         [
-            "colcon",
+            sys.executable, "-m", "colcon",
             "build",
             "--install-base", ros2_root,
             "--base-paths", ros2_root,

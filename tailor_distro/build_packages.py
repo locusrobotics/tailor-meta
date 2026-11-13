@@ -167,7 +167,7 @@ def create_optinstall_dirs(root_dir: pathlib.Path, organization: str, release_la
     # so everything sources correctly.
     colcon = subprocess.Popen(
         [
-            "colcon",
+            sys.executable, "-m", "colcon",
             "build",
             "--install-base", ros_root,
             "--base-paths", ros_root,

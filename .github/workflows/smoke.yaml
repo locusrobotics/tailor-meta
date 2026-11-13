@@ -1,0 +1,55 @@
+name: Hosted packaging smoke test
+on:
+  workflow_call:
+    inputs:
+      tailor_meta:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [jammy, noble]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: rosdistro
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: locusrobotics/tailor-meta
+          ref: ${{ inputs.tailor_meta }}
+          path: tailor-meta
+          persist-credentials: false
+      - name: Plan against caller configuration
+        env:
+          PYTHONPATH: tailor-meta
+        run: |
+          pip install PyYAML==6.0.2
+          python3 -m tailor_meta.actions plan --mode validate
+      - name: Build smoke environment
+        env:
+          OS_VERSION: ${{ matrix.os }}
+        run: |
+          docker build --build-arg "OS_VERSION=$OS_VERSION" \
+            -f tailor-meta/ci/smoke/Dockerfile -t tailor-smoke tailor-meta
+      - name: Build, package, install and run underlay fixture
+        run: |
+          mkdir output
+          docker run --rm -v "$PWD/output:/work" -v "$PWD/build-plan.json:/identity/build-plan.json:ro" tailor-smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}
+          retention-days: 7
+          path: |
+            build-plan.json
+            output/*.deb
+            output/build-report-*.yaml
+            output/smoke-result.json
+            output/log/**
