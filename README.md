@@ -173,6 +173,11 @@ contents. Jobs aggregate by repository/branch to avoid ROS distro collisions.
 Source CI must use its own read-only credentials, not publication/maintenance
 identities. Fork private tests require a reviewed manual dispatch on a hosted runner.
 
+For the toydistro pilot, an explicit manual dispatch may set `allow_feature: true`
+to write a source stub targeting the published feature label. The reusable job
+still rejects feature maintenance on automatic pushes. Its maintenance token
+must have contents/workflow write access to the opted-in source repository.
+
 1. Publish the implementation and generic toolchains; call the image factory
    from configuration repositories to publish their builders. Make GHCR packages public.
 2. Run CI/toydistro hosted checks, then graph/packages with read identities.

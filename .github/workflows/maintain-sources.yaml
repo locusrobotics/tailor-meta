@@ -8,6 +8,10 @@ on:
       apply:
         type: boolean
         default: false
+      allow_feature:
+        description: Explicit manual pilot only; permits a feature-label source hook
+        type: boolean
+        default: false
     secrets:
       TAILOR_MAINTENANCE_TOKEN:
         required: false
@@ -36,6 +40,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.TAILOR_MAINTENANCE_TOKEN }}
           APPLY: ${{ inputs.apply }}
+          ALLOW_FEATURE: ${{ inputs.allow_feature }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -44,8 +49,12 @@ jobs:
           from tailor_meta.actions import release, revision
           from tailor_meta.create_pipelines import create_pipelines
           target = release(os.environ['GITHUB_REF'])
-          if target['kind'] not in ('hotdog', 'candidate'):
+          feature_pilot = (target['kind'] == 'feature' and os.environ['ALLOW_FEATURE'] == 'true'
+                           and os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch')
+          if target['kind'] not in ('hotdog', 'candidate') and not feature_pilot:
               raise SystemExit('Source maintenance requires master or release/*')
+          if os.environ['APPLY'] == 'true' and not os.environ.get('GITHUB_TOKEN'):
+              raise SystemExit('TAILOR_MAINTENANCE_TOKEN must be configured before applying source stubs')
           create_pipelines(Path('rosdistro/rosdistro/index.yaml'),
                            yaml.safe_load(Path('rosdistro/config/recipes.yaml').read_text()),
                            os.environ.get('GITHUB_TOKEN'), os.environ['APPLY'] == 'true',
