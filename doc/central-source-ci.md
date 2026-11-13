@@ -58,6 +58,11 @@ trusted configuration repositories. Do not let source repositories or PR jobs
 schedule arbitrary work there. No publication credentials or signing keys belong
 on this runner.
 
+Restrict allowed workflows/refs in the runner group where supported, and protect
+the configuration/control workflow refs. Repository allowlisting alone does not
+make arbitrary branch workflows safe. The reusable workflow accepts only push,
+schedule, and manual-dispatch events, not PR or `pull_request_target` execution.
+
 Use an instance role rather than baked access keys. It needs:
 
 - Read access to the selected published environment's S3 plans/graphs.
