@@ -1,6 +1,6 @@
 """GitHub Actions planning and orchestration for the Tailor buildfarm.
 
-Builder libraries remain versioned independently; CI policy lives here.
+The consolidated builders retain their original Python namespaces.
 """
 import argparse
 import datetime
@@ -71,9 +71,9 @@ class Build:
     def run(self, *args):
         subprocess.run([str(arg) for arg in args], check=True)
 
-    def container(self, image, *command, privileged=False):
+    def container(self, image, *command, privileged=False, workdir='/work'):
         args = ['docker', 'run', '--rm', '--user', '0', '-e', 'HOME=/home/tailor',
-                '-v', f'{self.root}:/work', '-w', '/work',
+                '-v', f'{self.root}:/work', '-w', workdir,
                 '-v', f'{self.secret_dir}/s3auth.conf:/etc/apt/s3auth.conf:ro',
                 '-v', f'{self.secret_dir}/vault:/home/tailor/.vault_pass.txt:ro',
                 '-v', f'{os.environ["TAILOR_GPG_DIR"]}:/gpg:ro']
@@ -183,22 +183,33 @@ class Build:
                               UNION_BUILD_DEPENDS=' '.join(sorted(set(dependencies.read_text().splitlines()))),
                               UNION_RUN_DEPENDS='', ORGANIZATION=self.config['common']['organization'],
                               APT_REFRESH_KEY=datetime.date.today().strftime('%G-W%V'))
-            for distro in ('ros1', 'ros2'):
-                self.container(image, 'build_packages', '--graph', graph, '--workspace', 'workspace',
-                               '--recipe', recipes, '--ros-distro', distro,
-                               '--build-report', f'build-report-{version}-{distro}.yaml',
-                               *(['--rebuild-all'] if self.rebuild else []))
-            self.container(image, 'build_bundles', '--graph', graph, '--recipe', recipes, '--workspace', 'workspace',
-                           *(['--rebuild-all'] if self.rebuild else []))
+            # Keep apt-installed/rebuilt ROS 1 underlays in the same container as
+            # ROS 2. Build/install/optinstall state must not cross OS boundaries.
+            build_root = pathlib.Path('builds') / version
+            (build_root / 'workspace').mkdir(parents=True, exist_ok=True)
+            (build_root / 'workspace/src').symlink_to('/work/workspace/src', target_is_directory=True)
+            command = (
+                'export CCACHE_DIR="$PWD/ccache"; mkdir -p "$CCACHE_DIR"; '
+                'rebuild=(); [[ "$4" != true ]] || rebuild+=(--rebuild-all); '
+                'build_packages --graph "$1" --workspace workspace --recipe "$2" --ros-distro ros1 '
+                '--build-report "build-report-$3-ros1.yaml" "${rebuild[@]}"; '
+                'build_packages --graph "$1" --workspace workspace --recipe "$2" --ros-distro ros2 '
+                '--build-report "build-report-$3-ros2.yaml" "${rebuild[@]}"; '
+                'build_bundles --graph "$1" --workspace workspace --recipe "$2" "${rebuild[@]}"'
+            )
+            self.container(image, 'bash', '-ec', command, 'build', '/work/' + graph, '/work/' + recipes,
+                           version, str(self.rebuild).lower(), workdir='/work/' + str(build_root))
+            for report in build_root.glob('build-report-*.yaml'):
+                report.rename(pathlib.Path(report.name))
             if self.deploy:
                 self.container(self.parent, 'bash', '-ec',
                                'shopt -s nullglob; publish_packages *.deb "$@" --keys /gpg/*.key', 'publish',
                                '--release-label', self.label, '--apt-repo', self.apt, '--distribution', version,
-                               *self.retention())
+                               *self.retention(), workdir='/work/' + str(build_root))
             # Isolate per-OS package output; never publish the previous OS's debs.
             destination = pathlib.Path('packages') / version
             destination.mkdir(parents=True, exist_ok=True)
-            for deb in pathlib.Path('.').glob('*.deb'):
+            for deb in build_root.glob('*.deb'):
                 deb.rename(destination / deb.name)
         if self.deploy:
             self.run('aws', 's3', 'sync', 'workspace/dependencies', f'{self.apt}/{self.label}/dependencies',

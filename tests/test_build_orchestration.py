@@ -25,11 +25,13 @@ def test_order_and_publication_boundary(tmp_path, monkeypatch, deploy):
     with mock.patch.object(build, 'run') as run, mock.patch.object(build, 'images') as images:
         build.execute()
     calls = [call.args for call in run.call_args_list]
-    package_calls = [call for call in calls if 'build_packages' in call]
-    assert len(package_calls) == 2
-    assert package_calls[0][package_calls[0].index('--ros-distro') + 1] == 'ros1'
-    assert package_calls[1][package_calls[1].index('--ros-distro') + 1] == 'ros2'
-    assert all('--rebuild-all' in call for call in package_calls)
+    package_calls = [call for call in calls if any('build_packages --graph' in str(arg) for arg in call)]
+    assert len(package_calls) == 1
+    script = next(arg for arg in package_calls[0] if 'build_packages --graph' in str(arg))
+    assert script.index('--ros-distro ros1') < script.index('--ros-distro ros2') < script.index('build_bundles')
+    assert '--rebuild-all' in script
+    assert '/work/builds/noble' in package_calls[0]
+    assert (tmp_path / 'builds/noble/workspace/src').is_symlink()
     assert all('--no-cache' in call for call in calls if call[:2] == ('docker', 'build'))
     mutations = [call for call in calls if call[:3] == ('aws', 's3', 'sync') or
                  's3_directory_cleanup' in call or any('publish_packages' in str(arg) for arg in call)]
